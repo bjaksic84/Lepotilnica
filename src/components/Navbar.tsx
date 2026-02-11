@@ -25,7 +25,7 @@ export default function Navbar() {
 
                 <div className="hidden md:flex space-x-8 items-center font-medium text-gray-600 text-sm tracking-wide uppercase">
                     <Link href="/" className="hover:text-yellow-600 transition-colors">Home</Link>
-                    <Link href="#services" className="hover:text-yellow-600 transition-colors">Services</Link>
+                    <Link href="/services" className="hover:text-yellow-600 transition-colors">Services</Link>
                     <Link href="#about" className="hover:text-yellow-600 transition-colors">About</Link>
                 </div>
 
