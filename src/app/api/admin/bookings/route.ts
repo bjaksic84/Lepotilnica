@@ -9,8 +9,7 @@ export async function GET() {
         const allBookings = await db
             .select()
             .from(bookings)
-            .orderBy(desc(bookings.date), desc(bookings.time))
-            .all();
+            .orderBy(desc(bookings.date), desc(bookings.time));
 
         return NextResponse.json(allBookings);
     } catch (error) {

@@ -26,8 +26,7 @@ export async function GET(request: Request) {
                     eq(bookings.date, date),
                     not(eq(bookings.status, "cancelled"))
                 )
-            )
-            .all();
+            );
 
         const bookedTimes = new Set(bookedSlots.map(b => b.time));
 
