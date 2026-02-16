@@ -1,24 +1,65 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import BookingCalendar from "@/components/BookingCalendar";
 import { BookingFormData, bookingSchema } from "@/lib/validators";
 import { z } from "zod";
 
-export default function BookingPage() {
+type Service = {
+    id: number;
+    name: string;
+    duration: number;
+    price: number;
+    description: string | null;
+};
+
+function BookingContent() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
     const [step, setStep] = useState<"date" | "time" | "details" | "confirmation">("date");
+
+    // Form Data
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [formData, setFormData] = useState<Partial<BookingFormData>>({});
+
+    // Data State
+    const [services, setServices] = useState<Service[]>([]);
     const [availableSlots, setAvailableSlots] = useState<string[]>([]);
     const [loadingSlots, setLoadingSlots] = useState(false);
-
-    const [formData, setFormData] = useState<Partial<BookingFormData>>({
-        serviceId: "consultation", // Default service
-    });
+    const [loadingServices, setLoadingServices] = useState(true);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
+
+    // Initial load: Fetch services and check URL param
+    useEffect(() => {
+        const fetchServices = async () => {
+            try {
+                const res = await fetch("/api/services");
+                const data = await res.json();
+                // Access the flattened services from the categorized response
+                const allServices = data.flatMap((cat: any) => cat.services);
+                setServices(allServices);
+
+                // Check for pre-selected service in URL
+                const serviceParam = searchParams.get("service");
+                if (serviceParam) {
+                    const serviceId = parseInt(serviceParam);
+                    if (!isNaN(serviceId)) {
+                        setFormData(prev => ({ ...prev, serviceId }));
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch services", error);
+            } finally {
+                setLoadingServices(false);
+            }
+        };
+        fetchServices();
+    }, [searchParams]);
 
     // Fetch slots when date changes
     useEffect(() => {
@@ -27,7 +68,12 @@ export default function BookingPage() {
                 setLoadingSlots(true);
                 try {
                     const dateStr = format(selectedDate, "yyyy-MM-dd");
-                    const res = await fetch(`/api/availability?date=${dateStr}`);
+                    // We default to 30 mins duration for availability check if no service selected yet
+                    // If service is selected, use its duration
+                    const selectedService = services.find(s => s.id === formData.serviceId);
+                    const duration = selectedService?.duration || 30;
+
+                    const res = await fetch(`/api/availability?date=${dateStr}&duration=${duration}`);
                     const data = await res.json();
                     if (data.slots) {
                         setAvailableSlots(data.slots);
@@ -40,7 +86,7 @@ export default function BookingPage() {
             };
             fetchSlots();
         }
-    }, [selectedDate]);
+    }, [selectedDate, formData.serviceId, services]);
 
     const handleDateSelect = (date: Date) => {
         setSelectedDate(date);
@@ -62,6 +108,8 @@ export default function BookingPage() {
 
         const payload = {
             ...formData,
+            // Ensure serviceId is a number
+            serviceId: Number(formData.serviceId),
             date: format(selectedDate, "yyyy-MM-dd"),
             time: selectedTime,
         };
@@ -103,15 +151,11 @@ export default function BookingPage() {
         }
     };
 
-    const services = [
-        { id: "consultation", name: "Free Consultation", duration: "30 min" },
-        { id: "facial", name: "Premium Facial", duration: "60 min" },
-        { id: "massage", name: "Relaxing Massage", duration: "60 min" },
-    ];
+    const selectedService = services.find(s => s.id === formData.serviceId);
 
     return (
         <div className="min-h-screen pt-32 pb-20 bg-pink-50/30">
-            {/* Background blobs for depth */}
+            {/* Background blobs */}
             <div className="fixed top-20 left-0 w-96 h-96 bg-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -z-10 animate-blob" />
             <div className="fixed bottom-0 right-0 w-96 h-96 bg-yellow-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -z-10 animate-blob animation-delay-2000" />
 
@@ -210,6 +254,11 @@ export default function BookingPage() {
                                         <button onClick={() => setStep("date")} className="mt-4 text-yellow-600 underline text-sm">Choose another date</button>
                                     </div>
                                 )}
+                                {formData.serviceId && (
+                                    <p className="text-xs text-gray-400 mt-6 text-center">
+                                        Showing slots for {services.find(s => s.id === formData.serviceId)?.duration || 30} min duration
+                                    </p>
+                                )}
                             </motion.div>
                         )}
 
@@ -224,30 +273,38 @@ export default function BookingPage() {
                                     <button onClick={() => setStep("time")} className="mr-4 p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                                     </button>
-                                    <h2 className="text-2xl font-playfair font-bold text-gray-800">Your Details</h2>
+                                    <h2 className="text-2xl font-playfair font-bold text-gray-800">Finalize Booking</h2>
                                 </div>
 
                                 <form onSubmit={handleFormSubmit} className="space-y-6 max-w-xl mx-auto">
                                     {errors.form && <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm text-center">{errors.form}</div>}
 
+                                    {/* Service Selection */}
                                     <div className="space-y-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1">Service</label>
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1">Select Service</label>
                                         <div className="relative">
-                                            <select
-                                                value={formData.serviceId}
-                                                onChange={(e) => setFormData({ ...formData, serviceId: e.target.value })}
-                                                className="w-full px-5 py-4 rounded-xl bg-gray-50 border-0 focus:ring-2 focus:ring-yellow-500/50 outline-none appearance-none font-medium text-gray-900"
-                                            >
-                                                {services.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.name} ({s.duration})</option>
-                                                ))}
-                                            </select>
+                                            {loadingServices ? (
+                                                <div className="animate-pulse h-12 bg-gray-100 rounded-xl" />
+                                            ) : (
+                                                <select
+                                                    value={formData.serviceId || ""}
+                                                    onChange={(e) => setFormData({ ...formData, serviceId: Number(e.target.value) })}
+                                                    className={`w-full px-5 py-4 rounded-xl bg-gray-50 border-0 focus:ring-2 outline-none appearance-none font-medium text-gray-900 ${errors.serviceId ? "ring-2 ring-red-200 bg-red-50" : "focus:ring-yellow-500/50"}`}
+                                                >
+                                                    <option value="" disabled>Choose a service...</option>
+                                                    {services.map(s => (
+                                                        <option key={s.id} value={s.id}>{s.name} ({s.duration} min) - €{s.price}</option>
+                                                    ))}
+                                                </select>
+                                            )}
                                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
                                                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                                             </div>
                                         </div>
+                                        {errors.serviceId && <p className="text-red-500 text-xs pl-1">{errors.serviceId}</p>}
                                     </div>
 
+                                    {/* Personal Details */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2">
                                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1">Full Name</label>
@@ -299,14 +356,19 @@ export default function BookingPage() {
                                         <button
                                             type="submit"
                                             disabled={submitting}
-                                            className="btn-primary w-full py-4 text-lg"
+                                            className="btn-primary w-full py-4 text-lg shadow-xl"
                                         >
                                             {submitting ? (
                                                 <span className="flex items-center justify-center gap-2">
                                                     <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                                                     Confirming...
                                                 </span>
-                                            ) : "Confirm Booking"}
+                                            ) : (
+                                                <span className="flex items-center justify-center gap-2">
+                                                    Confirm Booking
+                                                    {selectedService && <span className="text-white/80 text-base font-normal">• €{selectedService.price}</span>}
+                                                </span>
+                                            )}
                                         </button>
                                     </div>
                                 </form>
@@ -328,15 +390,18 @@ export default function BookingPage() {
                                 <h2 className="text-4xl font-playfair font-bold text-gray-900 mb-4">Booking Confirmed!</h2>
                                 <div className="bg-gray-50 p-6 rounded-2xl max-w-sm mx-auto mb-8 border border-gray-100">
                                     <p className="text-gray-900 font-medium text-lg mb-1">{formData.customerName}</p>
-                                    <p className="text-gray-500 mb-4">{services.find(s => s.id === formData.serviceId)?.name}</p>
+                                    <p className="text-gray-500 mb-4">{selectedService?.name}</p>
                                     <div className="flex items-center justify-center gap-2 text-gray-700 font-semibold bg-white py-2 rounded-lg border border-gray-200">
                                         <span>{selectedDate && format(selectedDate, "MMM d")}</span>
                                         <span>•</span>
                                         <span>{selectedTime}</span>
                                     </div>
+                                    <div className="mt-4 text-sm text-gray-400">
+                                        Duration: {selectedService?.duration} min
+                                    </div>
                                 </div>
                                 <button
-                                    onClick={() => window.location.href = "/"}
+                                    onClick={() => router.push("/")}
                                     className="btn-primary"
                                 >
                                     Return Home
@@ -347,5 +412,13 @@ export default function BookingPage() {
                 </motion.div>
             </div>
         </div>
+    );
+}
+
+export default function BookingPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-pink-50/30 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500" /></div>}>
+            <BookingContent />
+        </Suspense>
     );
 }

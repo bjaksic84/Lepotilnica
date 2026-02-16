@@ -1,46 +1,61 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek } from "date-fns";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import WeeklyTimetable, { Booking as WeeklyBooking, BlockedTime } from "@/components/WeeklyTimetable";
 
-type Booking = {
-    id: number;
-    customerName: string;
+type Booking = WeeklyBooking & {
     customerEmail: string;
     customerPhone: string;
-    serviceId: string;
-    date: string;
-    time: string;
-    status: "confirmed" | "cancelled" | "completed" | "pending";
+    serviceId: number;
     notes?: string;
+    serviceName: string;
+    serviceDuration: number;
+    servicePrice: number;
 };
 
 export default function AdminPage() {
     const [bookings, setBookings] = useState<Booking[]>([]);
+    const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
     const [loading, setLoading] = useState(true);
+    const [viewDate, setViewDate] = useState(new Date());
+    const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
+
     const router = useRouter();
 
-    const fetchBookings = () => {
-        fetch("/api/admin/bookings")
-            .then(res => {
-                if (res.status === 401) {
-                    router.push("/admin/login");
-                    throw new Error("Unauthorized");
-                }
-                return res.json();
-            })
-            .then(data => {
-                setBookings(data);
-                setLoading(false);
-            })
-            .catch(err => console.error(err));
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const weekStart = format(startOfWeek(viewDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
+            const weekEnd = format(endOfWeek(viewDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
+
+            const [bookingsRes, blockedRes] = await Promise.all([
+                fetch(`/api/admin/bookings?weekStart=${weekStart}&weekEnd=${weekEnd}`),
+                fetch(`/api/admin/blocked-times?startDate=${weekStart}&endDate=${weekEnd}`)
+            ]);
+
+            if (bookingsRes.status === 401) {
+                router.push("/admin/login");
+                throw new Error("Unauthorized");
+            }
+
+            const bookingsData = await bookingsRes.json();
+            const blockedData = await blockedRes.json();
+
+            setBookings(bookingsData);
+            setBlockedTimes(blockedData);
+        } catch (error) {
+            console.error("Failed to fetch data", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
-        fetchBookings();
-    }, []);
+        fetchData();
+    }, [viewDate]); // Refetch when week changes
 
     const handleStatusUpdate = async (id: number, status: string) => {
         if (!confirm(`Are you sure you want to mark this booking as ${status}?`)) return;
@@ -51,7 +66,7 @@ export default function AdminPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status }),
             });
-            if (res.ok) fetchBookings();
+            if (res.ok) fetchData();
         } catch (error) {
             alert("Failed to update status");
         }
@@ -62,60 +77,51 @@ export default function AdminPage() {
 
         try {
             const res = await fetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
-            if (res.ok) fetchBookings();
+            if (res.ok) fetchData();
         } catch (error) {
             alert("Failed to delete booking");
         }
     };
 
-    const handleBlockSlot = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const form = e.target as HTMLFormElement;
-        const date = (form.elements.namedItem("date") as HTMLInputElement).value;
-        const time = (form.elements.namedItem("time") as HTMLInputElement).value;
-
-        if (!date || !time) return;
-
+    const handleBlockTime = async (date: string, startTime: string, endTime: string) => {
         try {
-            const res = await fetch("/api/bookings", {
+            const res = await fetch("/api/admin/blocked-times", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    date,
-                    time,
-                    customerName: "Admin Blocked",
-                    customerEmail: "admin@lepotilnica.si",
-                    customerPhone: "000",
-                    serviceId: "blocked",
-                    status: "confirmed"
-                }),
+                body: JSON.stringify({ date, startTime, endTime, reason: "Manual Block" }),
             });
 
             if (res.ok) {
-                alert("Slot blocked successfully");
-                fetchBookings();
-                form.reset();
+                fetchData();
             } else {
-                alert("Failed to block slot");
+                alert("Failed to block time");
             }
         } catch (error) {
-            alert("Error blocking slot");
+            console.error(error);
+            alert("Error blocking time");
         }
     };
 
-    if (loading) return (
+    const handleDeleteBlock = async (id: number) => {
+        if (!confirm("Remove this blocked time?")) return;
+        try {
+            const res = await fetch(`/api/admin/blocked-times/${id}`, { method: "DELETE" });
+            if (res.ok) fetchData();
+        } catch (error) {
+            alert("Failed to delete block");
+        }
+    };
+
+    if (loading && bookings.length === 0) return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500" />
         </div>
     );
 
     const stats = {
-        total: bookings.length,
-        upcoming: bookings.filter(b => new Date(b.date) >= new Date() && b.status === 'confirmed').length,
-        revenue: bookings.filter(b => b.status === 'confirmed').reduce((acc, curr) => {
-            const price = curr.serviceId === 'facial' ? 85 : curr.serviceId === 'massage' ? 70 : curr.serviceId === 'manicure' ? 45 : 0;
-            return acc + price;
-        }, 0)
+        total: bookings.length, // Only shows for current week now, might want separate total stats api later
+        upcoming: bookings.filter(b => new Date(b.date + 'T' + b.time) >= new Date() && b.status === 'confirmed').length,
+        revenue: bookings.filter(b => b.status === 'confirmed').reduce((acc, curr) => acc + curr.servicePrice, 0)
     };
 
     return (
@@ -128,26 +134,103 @@ export default function AdminPage() {
                     </div>
                     <div className="flex gap-4">
                         <div className="bg-white px-6 py-3 rounded-xl shadow-sm border border-gray-100">
-                            <span className="block text-xs font-bold text-gray-400 uppercase tracking-widest">Upcoming</span>
-                            <span className="text-2xl font-bold text-gray-900">{stats.upcoming}</span>
-                        </div>
-                        <div className="bg-white px-6 py-3 rounded-xl shadow-sm border border-gray-100">
-                            <span className="block text-xs font-bold text-gray-400 uppercase tracking-widest">Est. Revenue</span>
+                            <span className="block text-xs font-bold text-gray-400 uppercase tracking-widest">Revenue (Week)</span>
                             <span className="text-2xl font-bold text-yellow-600">€{stats.revenue}</span>
                         </div>
+                        <Link href="/admin/services" className="bg-gray-900 text-white px-6 py-3 rounded-xl shadow-lg border border-transparent hover:bg-gray-800 transition-all flex items-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                            Manage Services
+                        </Link>
                     </div>
                 </div>
 
-                {/* Navigation Tabs */}
-                <div className="flex gap-4 mb-8">
-                    <div className="px-6 py-3 rounded-xl font-bold bg-yellow-500 text-white shadow-lg cursor-default">Bookings</div>
-                    <Link href="/admin/services" className="px-6 py-3 rounded-xl font-bold bg-white text-gray-600 hover:bg-gray-100 transition-all">Services</Link>
+                {/* Tabs */}
+                <div className="flex gap-2 mb-6 bg-white p-1 rounded-xl w-fit shadow-sm border border-gray-100">
+                    <button
+                        onClick={() => setViewMode("calendar")}
+                        className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === "calendar" ? "bg-yellow-100 text-yellow-800" : "text-gray-500 hover:bg-gray-50"}`}
+                    >
+                        Calendar View
+                    </button>
+                    <button
+                        onClick={() => setViewMode("list")}
+                        className={`px-6 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === "list" ? "bg-yellow-100 text-yellow-800" : "text-gray-500 hover:bg-gray-50"}`}
+                    >
+                        List View
+                    </button>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Main Booking List */}
-                    <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-1 shadow-sm border border-gray-200">
+                {viewMode === "calendar" ? (
+                    <div className="space-y-4">
+                        <div className="bg-yellow-50 border border-yellow-100 p-4 rounded-xl flex items-start gap-3">
+                            <svg className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <div>
+                                <h3 className="font-bold text-yellow-800 text-sm">How to block time?</h3>
+                                <p className="text-yellow-700 text-sm">Click and drag on empty slots in the calendar to block time. Click on a blocked slot to remove it.</p>
+                            </div>
+                        </div>
+                        <WeeklyTimetable
+                            bookings={bookings}
+                            blockedTimes={blockedTimes}
+                            currentDate={viewDate}
+                            onDateChange={setViewDate}
+                            onBlockTime={handleBlockTime}
+                            onDeleteBlock={handleDeleteBlock}
+                        />
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {bookings.length === 0 && (
+                            <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-gray-100">No bookings found for this week.</div>
+                        )}
+
+                        {/* Mobile Card View */}
+                        <div className="grid grid-cols-1 gap-4 md:hidden">
+                            {bookings.sort((a, b) => new Date(b.date + 'T' + b.time).getTime() - new Date(a.date + 'T' + a.time).getTime()).map((booking) => (
+                                <div key={booking.id} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="font-bold text-gray-900">{format(new Date(booking.date), "EEE, MMM d")} at {booking.time}</div>
+                                            <div className="text-sm text-gray-500">{booking.serviceName} ({booking.serviceDuration} min)</div>
+                                        </div>
+                                        <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                                                booking.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                                    'bg-gray-100 text-gray-700'
+                                            }`}>
+                                            {booking.status}
+                                        </span>
+                                    </div>
+
+                                    <div className="pt-3 border-t border-gray-50 flex justify-between items-center">
+                                        <div>
+                                            <div className="font-medium text-sm text-gray-900">{booking.customerName}</div>
+                                            <div className="text-xs text-gray-400">{booking.customerPhone}</div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {booking.status !== 'cancelled' && (
+                                                <button
+                                                    onClick={() => handleStatusUpdate(booking.id, 'cancelled')}
+                                                    className="p-2 text-red-500 bg-red-50 rounded-full"
+                                                    title="Cancel"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => handleDelete(booking.id)}
+                                                className="p-2 text-gray-400 bg-gray-50 rounded-full"
+                                                title="Delete"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden md:block bg-white rounded-2xl p-1 shadow-sm border border-gray-200">
                             <div className="overflow-x-auto rounded-xl">
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-gray-50 text-gray-900 font-bold uppercase tracking-wider text-xs">
@@ -160,7 +243,7 @@ export default function AdminPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 bg-white">
-                                        {bookings.map((booking) => (
+                                        {bookings.sort((a, b) => new Date(b.date + 'T' + b.time).getTime() - new Date(a.date + 'T' + a.time).getTime()).map((booking) => (
                                             <tr key={booking.id} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="font-bold text-gray-900 text-base">
@@ -173,14 +256,13 @@ export default function AdminPage() {
                                                     <div className="text-xs text-gray-400">{booking.customerPhone}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="capitalize px-2 py-1 bg-gray-100 rounded-md text-xs font-medium text-gray-600">
-                                                        {booking.serviceId}
-                                                    </span>
+                                                    <span className="font-medium text-gray-900">{booking.serviceName}</span>
+                                                    <span className="text-xs text-gray-400 block">{booking.serviceDuration} min</span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
-                                                        booking.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                                            'bg-gray-100 text-gray-700'
+                                                            booking.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                                                'bg-gray-100 text-gray-700'
                                                         }`}>
                                                         {booking.status}
                                                     </span>
@@ -212,49 +294,8 @@ export default function AdminPage() {
                             </div>
                         </div>
                     </div>
-
-                    {/* Sidebar / Quick Actions */}
-                    <div className="space-y-8">
-                        {/* Manage Services Card */}
-                        <Link href="/admin/services" className="block glass-panel p-6 rounded-2xl hover:shadow-lg transition-all group">
-                            <h2 className="text-xl font-playfair font-bold text-gray-900 mb-2 flex items-center gap-2">
-                                <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                                Manage Services
-                            </h2>
-                            <p className="text-sm text-gray-500 mb-4">Create, edit, and manage your service categories and offerings.</p>
-                            <span className="text-yellow-600 font-bold text-sm group-hover:underline">Go to Service Management →</span>
-                        </Link>
-
-                        {/* Block Slot Card */}
-                        <div className="glass-panel p-6 rounded-2xl">
-                            <h2 className="text-xl font-playfair font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                Block Time Slot
-                            </h2>
-                            <p className="text-sm text-gray-500 mb-6">Prevent bookings for specific dates/times (e.g. holidays).</p>
-
-                            <form onSubmit={handleBlockSlot} className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-widest pl-1">Date</label>
-                                    <input type="date" name="date" required className="w-full px-4 py-3 rounded-xl bg-gray-50 border-0 focus:ring-2 focus:ring-yellow-400/50 outline-none text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-widest pl-1">Time</label>
-                                    <select name="time" required className="w-full px-4 py-3 rounded-xl bg-gray-50 border-0 focus:ring-2 focus:ring-yellow-400/50 outline-none text-sm appearance-none">
-                                        {["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"].map(t => (
-                                            <option key={t} value={t}>{t}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <button type="submit" className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all shadow-md">
-                                    Block Availability
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                )}
             </div>
         </div>
     );
 }
-

@@ -90,7 +90,7 @@ export default function Home() {
                       <span className="text-3xl font-playfair font-bold text-gray-900">€{service.price}</span>
                       <span className="text-xs text-gray-400 mt-1">{service.duration} min</span>
                     </div>
-                    <Link href="/book" className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center text-white group-hover:bg-yellow-500 transition-colors shadow-lg">
+                    <Link href={`/book?service=${service.id}`} className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center text-white group-hover:bg-yellow-500 transition-colors shadow-lg">
                       <svg className="w-5 h-5 -rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                       </svg>

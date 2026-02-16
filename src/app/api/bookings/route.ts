@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { bookings } from "@/db/schema";
+import { bookings, blockedTimes, services } from "@/db/schema";
 import { bookingSchema } from "@/lib/validators";
-import { eq, and } from "drizzle-orm";
+import { eq, and, not } from "drizzle-orm";
+
+function timeToMinutes(time: string): number {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
+}
 
 export async function POST(request: Request) {
     try {
@@ -16,36 +21,65 @@ export async function POST(request: Request) {
             );
         }
 
-        const { date, time } = result.data;
+        const { date, time, serviceId } = result.data;
 
-        // Check if slot is already taken
-        const existingBooking = await db
-            .select()
+        // Look up service duration
+        const service = await db.select().from(services).where(eq(services.id, serviceId)).get();
+        if (!service) {
+            return NextResponse.json({ error: "Service not found" }, { status: 404 });
+        }
+
+        const requestedStart = timeToMinutes(time);
+        const requestedEnd = requestedStart + service.duration;
+
+        // Check overlap with existing bookings
+        const existingBookings = await db
+            .select({
+                time: bookings.time,
+                serviceDuration: services.duration,
+            })
             .from(bookings)
+            .leftJoin(services, eq(bookings.serviceId, services.id))
             .where(
                 and(
                     eq(bookings.date, date),
-                    eq(bookings.time, time),
-                    eq(bookings.status, "confirmed") // Only check confirmed bookings? Or pending too?
-                    // For now, let's assume anything in DB blocks the slot to avoid double booking
+                    not(eq(bookings.status, "cancelled"))
                 )
-            )
-            .get();
-
-        // Actually, we should probably check if *any* booking exists for that slot that isn't cancelled
-        const slotTaken = await db.select().from(bookings).where(and(eq(bookings.date, date), eq(bookings.time, time))).get();
-
-        if (slotTaken && slotTaken.status !== 'cancelled') {
-            return NextResponse.json(
-                { error: "Time slot already booked" },
-                { status: 409 }
             );
+
+        for (const existing of existingBookings) {
+            const existStart = timeToMinutes(existing.time);
+            const existEnd = existStart + (existing.serviceDuration || 30);
+            // Overlap check: two ranges overlap if start1 < end2 AND start2 < end1
+            if (requestedStart < existEnd && existStart < requestedEnd) {
+                return NextResponse.json(
+                    { error: "Time slot conflicts with an existing booking" },
+                    { status: 409 }
+                );
+            }
+        }
+
+        // Check overlap with blocked times
+        const blockedForDate = await db
+            .select()
+            .from(blockedTimes)
+            .where(eq(blockedTimes.date, date));
+
+        for (const block of blockedForDate) {
+            const blockStart = timeToMinutes(block.startTime);
+            const blockEnd = timeToMinutes(block.endTime);
+            if (requestedStart < blockEnd && blockStart < requestedEnd) {
+                return NextResponse.json(
+                    { error: "Time slot is blocked" },
+                    { status: 409 }
+                );
+            }
         }
 
         // Create booking
         const newBooking = await db.insert(bookings).values({
             ...result.data,
-            status: "confirmed", // Auto-confirm for now
+            status: "confirmed",
         }).returning().get();
 
         return NextResponse.json(newBooking, { status: 201 });
