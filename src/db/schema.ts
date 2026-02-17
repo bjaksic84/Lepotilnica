@@ -33,6 +33,7 @@ export const bookings = sqliteTable("bookings", {
     time: text("time").notNull(), // HH:mm
     status: text("status", { enum: ["pending", "confirmed", "cancelled"] }).default("pending").notNull(),
     notes: text("notes"),
+    cancellationToken: text("cancellation_token").unique(),
     createdAt: text("created_at")
         .default(sql`CURRENT_TIMESTAMP`)
         .notNull(),

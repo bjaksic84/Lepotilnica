@@ -4,6 +4,9 @@ import { bookings, blockedTimes, services } from "@/db/schema";
 import { bookingSchema } from "@/lib/validators";
 import { eq, and, not } from "drizzle-orm";
 import { broadcast } from "@/lib/broadcast";
+import { v4 as uuidv4 } from "uuid";
+import { sendBookingConfirmation } from "@/lib/email";
+import { bookingLimiter, getClientIp } from "@/lib/rate-limit";
 
 function timeToMinutes(time: string): number {
     const [h, m] = time.split(":").map(Number);
@@ -12,6 +15,16 @@ function timeToMinutes(time: string): number {
 
 export async function POST(request: Request) {
     try {
+        // ── Rate limiting ────────────────────────────────────────
+        const ip = getClientIp(request);
+        const { success: withinLimit } = await bookingLimiter.check(ip, 5);
+        if (!withinLimit) {
+            return NextResponse.json(
+                { error: "Too many booking requests. Please try again later." },
+                { status: 429 }
+            );
+        }
+
         const body = await request.json();
         const result = bookingSchema.safeParse(body);
 
@@ -77,11 +90,25 @@ export async function POST(request: Request) {
             }
         }
 
-        // Create booking
+        // Create booking with cancellation token
+        const cancellationToken = uuidv4();
         const newBooking = await db.insert(bookings).values({
             ...result.data,
             status: "confirmed",
+            cancellationToken,
         }).returning().get();
+
+        // Send confirmation email (non-blocking – don't fail the booking if email fails)
+        sendBookingConfirmation({
+            customerName: result.data.customerName,
+            customerEmail: result.data.customerEmail,
+            serviceName: service.name,
+            servicePrice: service.price,
+            serviceDuration: service.duration,
+            date: result.data.date,
+            time: result.data.time,
+            cancellationToken,
+        }).catch((err) => console.error("[Email] Background send failed:", err));
 
         await broadcast({ event: "booking_created", data: { ...newBooking, serviceName: service.name, serviceDuration: service.duration, servicePrice: service.price } });
         return NextResponse.json(newBooking, { status: 201 });

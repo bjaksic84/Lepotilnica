@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { authLimiter, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
     try {
+        // ── Rate limiting ────────────────────────────────────────
+        const ip = getClientIp(request);
+        const { success: withinLimit } = await authLimiter.check(ip, 5);
+        if (!withinLimit) {
+            return NextResponse.json(
+                { error: "Too many login attempts. Please try again later." },
+                { status: 429 }
+            );
+        }
+
         const { password } = await request.json();
 
         // In a real app, use a secure environment variable. 
