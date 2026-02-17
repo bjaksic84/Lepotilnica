@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import WeeklyTimetable, { Booking as WeeklyBooking, BlockedTime } from "@/components/WeeklyTimetable";
+import { useWebSocket, WsEvent } from "@/lib/useWebSocket";
+import ToastContainer, { useToast } from "@/components/Toast";
 
 type Booking = WeeklyBooking & {
     customerEmail: string;
@@ -24,6 +26,46 @@ export default function AdminPage() {
     const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
 
     const router = useRouter();
+    const { toasts, addToast, removeToast } = useToast();
+
+    // ── Real-time WebSocket ────────────────────────────────────────────────
+    const handleWsEvent = useCallback((event: WsEvent) => {
+        if (event.event === "connected") return;
+
+        // Auto-refresh data on any booking or blocked-time event
+        const bookingEvents = ["booking_created", "booking_updated", "booking_deleted"];
+        const blockedEvents = ["blocked_time_created", "blocked_time_deleted"];
+
+        if ([...bookingEvents, ...blockedEvents].includes(event.event)) {
+            fetchData();
+        }
+
+        // Show toast notifications
+        const messages: Record<string, { title: string; message: string }> = {
+            booking_created: { title: "New Booking", message: `${(event.data as Record<string, unknown>).customerName || "A customer"} just booked an appointment` },
+            booking_updated: { title: "Booking Updated", message: `Booking #${(event.data as Record<string, unknown>).id} status changed to ${(event.data as Record<string, unknown>).status}` },
+            booking_deleted: { title: "Booking Deleted", message: `Booking #${(event.data as Record<string, unknown>).id} was removed` },
+            blocked_time_created: { title: "Time Blocked", message: "A new time slot has been blocked" },
+            blocked_time_deleted: { title: "Block Removed", message: "A blocked time slot was freed up" },
+            service_created: { title: "Service Added", message: "A new service was created" },
+            service_updated: { title: "Service Updated", message: "A service was modified" },
+            service_deleted: { title: "Service Deleted", message: "A service was removed" },
+            category_created: { title: "Category Added", message: "A new category was created" },
+            category_updated: { title: "Category Updated", message: "A category was modified" },
+            category_deleted: { title: "Category Deleted", message: "A category was removed" },
+        };
+
+        const msg = messages[event.event];
+        if (msg) {
+            addToast({
+                type: bookingEvents.includes(event.event) ? "info" : blockedEvents.includes(event.event) ? "warning" : "success",
+                title: msg.title,
+                message: msg.message,
+            });
+        }
+    }, [addToast]);
+
+    const { status: wsStatus } = useWebSocket({ onEvent: handleWsEvent });
 
     const fetchData = async () => {
         setLoading(true);
@@ -126,6 +168,25 @@ export default function AdminPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 pt-24 pb-20">
+            {/* Real-time Toast Notifications */}
+            <ToastContainer toasts={toasts} onDismiss={removeToast} />
+
+            {/* WebSocket Status Indicator */}
+            <div className="fixed bottom-4 right-4 z-50">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm border ${
+                    wsStatus === "connected"
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : wsStatus === "reconnecting" || wsStatus === "connecting"
+                        ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                        : "bg-red-50 text-red-700 border-red-200"
+                }`}>
+                    <div className={`w-2 h-2 rounded-full ${
+                        wsStatus === "connected" ? "bg-green-500 animate-pulse" : wsStatus === "reconnecting" || wsStatus === "connecting" ? "bg-yellow-500 animate-pulse" : "bg-red-500"
+                    }`} />
+                    {wsStatus === "connected" ? "Live" : wsStatus === "reconnecting" ? "Reconnecting..." : wsStatus === "connecting" ? "Connecting..." : "Offline"}
+                </div>
+            </div>
+
             <div className="container mx-auto px-4 max-w-7xl">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                     <div>

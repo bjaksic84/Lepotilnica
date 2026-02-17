@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { bookings, blockedTimes, services } from "@/db/schema";
 import { bookingSchema } from "@/lib/validators";
 import { eq, and, not } from "drizzle-orm";
+import { broadcast } from "@/lib/broadcast";
 
 function timeToMinutes(time: string): number {
     const [h, m] = time.split(":").map(Number);
@@ -82,6 +83,7 @@ export async function POST(request: Request) {
             status: "confirmed",
         }).returning().get();
 
+        await broadcast({ event: "booking_created", data: { ...newBooking, serviceName: service.name, serviceDuration: service.duration, servicePrice: service.price } });
         return NextResponse.json(newBooking, { status: 201 });
     } catch (error) {
         console.error("Booking error:", error);

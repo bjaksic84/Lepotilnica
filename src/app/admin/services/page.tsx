@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useWebSocket, WsEvent } from "@/lib/useWebSocket";
+import ToastContainer, { useToast } from "@/components/Toast";
 
 type Category = {
     id: number;
@@ -45,6 +47,40 @@ export default function AdminServicesPage() {
     const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
 
     const router = useRouter();
+    const { toasts, addToast, removeToast } = useToast();
+
+    // ── Real-time WebSocket ────────────────────────────────────────────────
+    const handleWsEvent = useCallback((event: WsEvent) => {
+        if (event.event === "connected") return;
+
+        const categoryEvents = ["category_created", "category_updated", "category_deleted"];
+        const serviceEvents = ["service_created", "service_updated", "service_deleted"];
+
+        if (categoryEvents.includes(event.event)) fetchCategories();
+        if (serviceEvents.includes(event.event)) fetchServices();
+        if (event.event === "category_deleted") fetchServices(); // Also refresh services when a category is deleted
+
+        const messages: Record<string, { title: string; message: string }> = {
+            service_created: { title: "Service Added", message: `"${(event.data as Record<string, unknown>).name || "New service"}" was created` },
+            service_updated: { title: "Service Updated", message: `"${(event.data as Record<string, unknown>).name || "A service"}" was modified` },
+            service_deleted: { title: "Service Deleted", message: "A service was removed" },
+            category_created: { title: "Category Added", message: `"${(event.data as Record<string, unknown>).name || "New category"}" was created` },
+            category_updated: { title: "Category Updated", message: `"${(event.data as Record<string, unknown>).name || "A category"}" was modified` },
+            category_deleted: { title: "Category Deleted", message: "A category and its services were removed" },
+            booking_created: { title: "New Booking", message: "A new appointment was just booked" },
+        };
+
+        const msg = messages[event.event];
+        if (msg) {
+            addToast({
+                type: categoryEvents.includes(event.event) ? "info" : serviceEvents.includes(event.event) ? "success" : "warning",
+                title: msg.title,
+                message: msg.message,
+            });
+        }
+    }, [addToast]);
+
+    const { status: wsStatus } = useWebSocket({ onEvent: handleWsEvent });
 
     const fetchCategories = async () => {
         try {
@@ -173,6 +209,25 @@ export default function AdminServicesPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 pt-24 pb-20">
+            {/* Real-time Toast Notifications */}
+            <ToastContainer toasts={toasts} onDismiss={removeToast} />
+
+            {/* WebSocket Status Indicator */}
+            <div className="fixed bottom-4 right-4 z-50">
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm border ${
+                    wsStatus === "connected"
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : wsStatus === "reconnecting" || wsStatus === "connecting"
+                        ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                        : "bg-red-50 text-red-700 border-red-200"
+                }`}>
+                    <div className={`w-2 h-2 rounded-full ${
+                        wsStatus === "connected" ? "bg-green-500 animate-pulse" : wsStatus === "reconnecting" || wsStatus === "connecting" ? "bg-yellow-500 animate-pulse" : "bg-red-500"
+                    }`} />
+                    {wsStatus === "connected" ? "Live" : wsStatus === "reconnecting" ? "Reconnecting..." : wsStatus === "connecting" ? "Connecting..." : "Offline"}
+                </div>
+            </div>
+
             <div className="container mx-auto px-4 max-w-7xl">
                 <div className="mb-8">
                     <Link href="/admin" className="text-yellow-600 text-sm font-bold hover:underline mb-4 inline-block">← Back to Dashboard</Link>

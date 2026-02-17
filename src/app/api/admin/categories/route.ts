@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { categories } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { broadcast } from "@/lib/broadcast";
 
 export async function GET() {
     try {
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
             description,
         }).returning();
 
+        await broadcast({ event: "category_created", data: { ...newCategory[0] } });
         return NextResponse.json(newCategory[0]);
     } catch (error) {
         return NextResponse.json({ error: "Failed to create category" }, { status: 500 });

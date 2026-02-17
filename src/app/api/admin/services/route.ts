@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { services } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { broadcast } from "@/lib/broadcast";
 
 export async function GET(req: Request) {
     try {
@@ -40,6 +41,7 @@ export async function POST(req: Request) {
             isPopular: isPopular || false,
         }).returning();
 
+        await broadcast({ event: "service_created", data: { ...newService[0] } });
         return NextResponse.json(newService[0]);
     } catch (error) {
         return NextResponse.json({ error: "Failed to create service" }, { status: 500 });

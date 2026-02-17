@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { categories, services } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { broadcast } from "@/lib/broadcast";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -22,6 +23,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             return NextResponse.json({ error: "Category not found" }, { status: 404 });
         }
 
+        await broadcast({ event: "category_updated", data: { ...updated[0] } });
         return NextResponse.json(updated[0]);
     } catch (error) {
         return NextResponse.json({ error: "Failed to update category" }, { status: 500 });
@@ -45,6 +47,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
             return NextResponse.json({ error: "Category not found" }, { status: 404 });
         }
 
+        await broadcast({ event: "category_deleted", data: { id } });
         return NextResponse.json({ message: "Category and its services deleted successfully" });
     } catch (error) {
         return NextResponse.json({ error: "Failed to delete category" }, { status: 500 });

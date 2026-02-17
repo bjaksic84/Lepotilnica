@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { blockedTimes } from "@/db/schema";
 import { blockedTimeSchema } from "@/lib/validators";
 import { and, gte, lte } from "drizzle-orm";
+import { broadcast } from "@/lib/broadcast";
 
 export async function GET(request: Request) {
     try {
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
         }
 
         const newBlock = await db.insert(blockedTimes).values(result.data).returning().get();
+        await broadcast({ event: "blocked_time_created", data: { ...newBlock } });
         return NextResponse.json(newBlock, { status: 201 });
     } catch (error) {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

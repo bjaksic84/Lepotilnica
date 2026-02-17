@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { services } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { broadcast } from "@/lib/broadcast";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
@@ -22,6 +23,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             return NextResponse.json({ error: "Service not found" }, { status: 404 });
         }
 
+        await broadcast({ event: "service_updated", data: { ...updated[0] } });
         return NextResponse.json(updated[0]);
     } catch (error) {
         return NextResponse.json({ error: "Failed to update service" }, { status: 500 });
@@ -41,6 +43,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
             return NextResponse.json({ error: "Service not found" }, { status: 404 });
         }
 
+        await broadcast({ event: "service_deleted", data: { id } });
         return NextResponse.json({ message: "Service deleted successfully" });
     } catch (error) {
         return NextResponse.json({ error: "Failed to delete service" }, { status: 500 });

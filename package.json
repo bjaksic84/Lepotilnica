@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:ws": "cd ws-server && cargo run",
+    "dev:all": "npm run dev:ws & npm run dev",
     "build": "next build",
+    "build:ws": "cd ws-server && cargo build --release",
     "start": "next start",
     "lint": "eslint"
   },
