@@ -2,8 +2,19 @@ import { db } from "@/db";
 import { categories, services } from "@/db/schema";
 import ServicesList from "@/components/ServicesList";
 import ServicesHero from "@/components/ServicesHero";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+    title: "Services",
+    description: "Browse our complete menu of premium beauty treatments — facials, lash extensions, manicures, massages, and more at Lepotilnica by Karin in Ljubljana.",
+    openGraph: {
+        title: "Services — Lepotilnica by Karin",
+        description: "Browse our complete menu of premium beauty treatments in Ljubljana.",
+        url: "https://lepotilnica.si/services",
+    },
+};
 
 export default async function ServicesPage() {
     // Server-side fetching

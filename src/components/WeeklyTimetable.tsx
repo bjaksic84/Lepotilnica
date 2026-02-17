@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, Component } from "react";
+import { useState } from "react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from "date-fns";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export type Booking = {
     id: number;
@@ -29,9 +29,17 @@ type WeeklyTimetableProps = {
     onDateChange: (date: Date) => void;
     onBlockTime: (date: string, startTime: string, endTime: string) => Promise<void>;
     onDeleteBlock: (id: number) => Promise<void>;
+    onBookingClick?: (bookingId: number) => void;
 };
 
-const HOURS = Array.from({ length: 17 }, (_, i) => 9 + i * 0.5); // 09:00 to 17:00 in 30m intervals
+// 30-min slots from 09:00 to 17:30 (last slot starts at 17:00)
+const SLOT_COUNT = 17; // 9:00,9:30,10:00,...,17:00
+const SLOT_HEIGHT = 48; // px per 30-min slot
+const HOUR_HEIGHT = SLOT_HEIGHT * 2; // 96px per hour
+const TOP_PADDING = 12; // px above the first row so 9AM isn't clipped
+const GRID_HEIGHT = SLOT_COUNT * SLOT_HEIGHT + TOP_PADDING; // total grid height
+
+const SLOTS = Array.from({ length: SLOT_COUNT }, (_, i) => 9 + i * 0.5);
 
 function formatTime(hour: number) {
     const h = Math.floor(hour);
@@ -44,15 +52,23 @@ function timeToFloat(time: string) {
     return h + m / 60;
 }
 
-export default function WeeklyTimetable({ bookings, blockedTimes, currentDate, onDateChange, onBlockTime, onDeleteBlock }: WeeklyTimetableProps) {
+export default function WeeklyTimetable({
+    bookings,
+    blockedTimes,
+    currentDate,
+    onDateChange,
+    onBlockTime,
+    onDeleteBlock,
+    onBookingClick,
+}: WeeklyTimetableProps) {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
     const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
     // Drag selection state
     const [isDragging, setIsDragging] = useState(false);
-    const [selectionStart, setSelectionStart] = useState<{ date: Date, time: number } | null>(null);
-    const [selectionEnd, setSelectionEnd] = useState<{ date: Date, time: number } | null>(null);
+    const [selectionStart, setSelectionStart] = useState<{ date: Date; time: number } | null>(null);
+    const [selectionEnd, setSelectionEnd] = useState<{ date: Date; time: number } | null>(null);
 
     const handleMouseDown = (date: Date, time: number) => {
         setIsDragging(true);
@@ -73,132 +89,260 @@ export default function WeeklyTimetable({ bookings, blockedTimes, currentDate, o
             const dateStr = format(selectionStart.date, "yyyy-MM-dd");
             const startVal = Math.min(selectionStart.time, selectionEnd.time - 0.5);
             const endVal = Math.max(selectionStart.time + 0.5, selectionEnd.time);
-
-            const start = formatTime(startVal);
-            const end = formatTime(endVal);
-
-            await onBlockTime(dateStr, start, end);
+            await onBlockTime(dateStr, formatTime(startVal), formatTime(endVal));
         }
         setIsDragging(false);
         setSelectionStart(null);
         setSelectionEnd(null);
     };
 
+    // Current-time indicator position
+    const now = new Date();
+    const nowFloat = now.getHours() + now.getMinutes() / 60;
+    const showNowLine = nowFloat >= 9 && nowFloat <= 17.5;
+    const nowTop = TOP_PADDING + (nowFloat - 9) * HOUR_HEIGHT;
+
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col h-[800px] select-none" onMouseUp={handleMouseUp}>
-            {/* Header */}
-            <div className="flex border-b border-gray-200 bg-gray-50">
-                <div className="w-16 flex-shrink-0 flex items-center justify-center p-4 border-r border-gray-200 bg-white">
-                    <div className="flex gap-1">
-                        <button onClick={() => onDateChange(subWeeks(currentDate, 1))} className="p-1 hover:bg-gray-100 rounded">
-                            <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                        </button>
-                        <button onClick={() => onDateChange(addWeeks(currentDate, 1))} className="p-1 hover:bg-gray-100 rounded">
-                            <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                        </button>
-                    </div>
+        <div
+            className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col select-none overflow-hidden"
+            style={{ height: "min(800px, 85vh)" }}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={() => {
+                if (isDragging) {
+                    setIsDragging(false);
+                    setSelectionStart(null);
+                    setSelectionEnd(null);
+                }
+            }}
+        >
+            {/* ── Header: Week navigation + Day columns ── */}
+            <div className="flex border-b border-gray-200 bg-gray-50 rounded-t-2xl flex-shrink-0">
+                {/* Nav buttons */}
+                <div className="w-[60px] flex-shrink-0 flex flex-col items-center justify-center gap-0.5 border-r border-gray-200 bg-white rounded-tl-2xl">
+                    <button
+                        onClick={() => onDateChange(subWeeks(currentDate, 1))}
+                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                        aria-label="Previous week"
+                    >
+                        <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <button
+                        onClick={() => onDateChange(new Date())}
+                        className="text-[9px] font-bold text-gray-400 hover:text-yellow-600 transition-colors uppercase tracking-wider"
+                    >
+                        Today
+                    </button>
+                    <button
+                        onClick={() => onDateChange(addWeeks(currentDate, 1))}
+                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                        aria-label="Next week"
+                    >
+                        <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
                 </div>
-                <div className="flex-1 grid grid-cols-7 divide-x divide-gray-200">
-                    {days.map(day => (
-                        <div key={day.toISOString()} className={`text-center py-2 ${isSameDay(day, new Date()) ? 'bg-yellow-50' : ''}`}>
-                            <div className="text-xs font-bold text-gray-500 uppercase">{format(day, "EEE")}</div>
-                            <div className={`text-lg font-bold ${isSameDay(day, new Date()) ? 'text-yellow-600' : 'text-gray-900'}`}>{format(day, "d")}</div>
-                        </div>
-                    ))}
+
+                {/* Day headers */}
+                <div className="flex-1 grid grid-cols-7">
+                    {days.map((day, idx) => {
+                        const isToday = isSameDay(day, now);
+                        return (
+                            <div
+                                key={day.toISOString()}
+                                className={`text-center py-3 ${isToday ? "bg-yellow-50/80" : ""} ${idx < 6 ? "border-r border-gray-200" : ""}`}
+                            >
+                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                    {format(day, "EEE")}
+                                </div>
+                                <div
+                                    className={`text-lg font-bold mt-0.5 ${
+                                        isToday
+                                            ? "bg-yellow-500 text-white w-8 h-8 rounded-full flex items-center justify-center mx-auto leading-none"
+                                            : "text-gray-900"
+                                    }`}
+                                >
+                                    {format(day, "d")}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
-            {/* Grid */}
-            <div className="overflow-y-auto flex-1 relative custom-scrollbar">
-                <div className="flex min-h-[768px] min-w-[800px] lg:min-w-0"> {/* Force min-width for mobile scroll */}
+            {/* ── Scrollable Grid ── */}
+            <div className="overflow-auto flex-1 min-h-0 rounded-b-2xl">
+                <div className="flex" style={{ minHeight: `${GRID_HEIGHT}px`, minWidth: 800 }}>
                     {/* Time Axis */}
-                    <div className="w-16 flex-shrink-0 bg-white border-r border-gray-200 sticky left-0 z-20">
-                        {HOURS.map((hour, i) => (
-                            /* Only show label for full hours */
-                            Number.isInteger(hour) ? (
-                                <div key={hour} className="h-24 border-b border-gray-100 text-xs text-gray-400 text-right pr-2 pt-1 relative -top-3">
-                                    {formatTime(hour)}
-                                </div>
-                            ) : null
+                    <div
+                        className="w-[60px] flex-shrink-0 bg-white border-r border-gray-200 sticky left-0 z-20 relative"
+                        style={{ height: `${GRID_HEIGHT}px` }}
+                    >
+                        {SLOTS.filter((h) => Number.isInteger(h)).map((hour) => (
+                            <div
+                                key={hour}
+                                className="absolute right-0 pr-2 text-[11px] font-medium text-gray-400 leading-none"
+                                style={{ top: `${TOP_PADDING + (hour - 9) * HOUR_HEIGHT - 6}px` }}
+                            >
+                                {formatTime(hour)}
+                            </div>
                         ))}
                     </div>
 
-                    {/* Columns */}
-                    <div className="flex-1 grid grid-cols-7 divide-x divide-gray-200 relative bg-gray-50/30">
-                        {days.map(day => (
-                            <div key={day.toISOString()} className="relative">
-                                {/* Grid Lines (30 mins = 48px height) */}
-                                {HOURS.map((hour) => (
-                                    <div
-                                        key={hour}
-                                        className="h-12 border-b border-dashed border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer box-border"
-                                        onMouseDown={() => handleMouseDown(day, hour)}
-                                        onMouseEnter={() => handleMouseEnter(day, hour)}
-                                    />
-                                ))}
+                    {/* Day Columns */}
+                    <div className="flex-1 grid grid-cols-7 relative">
+                        {days.map((day, colIdx) => {
+                            const isToday = isSameDay(day, now);
+                            const dayBookings = bookings.filter(
+                                (b) => isSameDay(new Date(b.date), day) && b.status !== "cancelled"
+                            );
+                            const dayBlocks = blockedTimes.filter((b) => isSameDay(new Date(b.date), day));
 
-                                {/* Render Bookings */}
-                                {bookings.filter(b => isSameDay(new Date(b.date), day) && b.status !== 'cancelled').map(booking => {
-                                    const start = timeToFloat(booking.time);
-                                    // 9:00 is at 0px. Each hour is 96px (2 * 48px).
-                                    const top = (start - 9) * 96;
-                                    const height = ((booking.serviceDuration || 30) / 60) * 96;
-
-                                    return (
-                                        <motion.div
-                                            key={booking.id}
-                                            initial={{ opacity: 0, scale: 0.95 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            className="absolute left-1 right-1 rounded-md bg-pink-100 border border-pink-200 p-2 text-xs flex flex-col overflow-hidden shadow-sm hover:shadow-md hover:z-10 transition-all cursor-pointer group"
-                                            style={{ top: `${top}px`, height: `${height - 2}px` }}
-                                            title={`${booking.customerName} - ${booking.serviceName}`}
-                                        >
-                                            <div className="font-bold text-pink-900 truncate">{booking.customerName}</div>
-                                            <div className="text-pink-700 truncate text-[10px]">{booking.serviceName}</div>
-                                            <div className="text-pink-600/70 mt-auto text-[10px]">{booking.time}</div>
-                                        </motion.div>
-                                    );
-                                })}
-
-                                {/* Render Blocked Times */}
-                                {blockedTimes.filter(b => isSameDay(new Date(b.date), day)).map(block => {
-                                    const start = timeToFloat(block.startTime);
-                                    const end = timeToFloat(block.endTime);
-                                    const top = (start - 9) * 96;
-                                    const height = (end - start) * 96;
-
-                                    return (
+                            return (
+                                <div
+                                    key={day.toISOString()}
+                                    className={`relative ${colIdx < 6 ? "border-r border-gray-200" : ""} ${isToday ? "bg-yellow-50/30" : ""}`}
+                                    style={{ height: `${GRID_HEIGHT}px` }}
+                                >
+                                    {/* Grid lines */}
+                                    {SLOTS.map((hour) => (
                                         <div
-                                            key={`block-${block.id}`}
-                                            className="absolute left-1 right-1 rounded bg-gray-100 border border-gray-300 flex items-center justify-center group z-0"
+                                            key={hour}
+                                            className={`absolute left-0 right-0 border-b cursor-pointer transition-colors hover:bg-gray-100/60 ${
+                                                Number.isInteger(hour) ? "border-gray-200" : "border-gray-100 border-dashed"
+                                            }`}
                                             style={{
-                                                top: `${top}px`,
-                                                height: `${height - 2}px`,
-                                                backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 5px, rgba(0,0,0,0.05) 5px, rgba(0,0,0,0.05) 10px)'
+                                                top: `${TOP_PADDING + (hour - 9) * HOUR_HEIGHT}px`,
+                                                height: `${SLOT_HEIGHT}px`,
                                             }}
-                                        >
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onDeleteBlock(block.id); }}
-                                                className="opacity-0 group-hover:opacity-100 bg-white text-red-500 rounded-full p-1 shadow hover:bg-red-50 transition-all transform scale-90 active:scale-95"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                            onMouseDown={() => handleMouseDown(day, hour)}
+                                            onMouseEnter={() => handleMouseEnter(day, hour)}
+                                        />
+                                    ))}
 
-                                {/* Selection Preview */}
-                                {isDragging && selectionStart && isSameDay(day, selectionStart.date) && (
-                                    <div
-                                        className="absolute left-1 right-1 bg-blue-500/10 border-2 border-dashed border-blue-400 pointer-events-none z-30 rounded"
-                                        style={{
-                                            top: `${(Math.min(selectionStart.time, selectionEnd?.time || 0) - 9) * 96}px`,
-                                            height: `${Math.abs((selectionEnd?.time || 0) - selectionStart.time) * 96}px`
-                                        }}
-                                    />
-                                )}
-                            </div>
-                        ))}
+                                    {/* Current time indicator */}
+                                    {isToday && showNowLine && (
+                                        <div
+                                            className="absolute left-0 right-0 z-30 pointer-events-none"
+                                            style={{ top: `${nowTop}px` }}
+                                        >
+                                            <div className="flex items-center">
+                                                <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-[5px] shadow-sm" />
+                                                <div className="flex-1 h-[2px] bg-red-500 opacity-70" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Bookings */}
+                                    {dayBookings.map((booking) => {
+                                        const start = timeToFloat(booking.time);
+                                        const top = TOP_PADDING + (start - 9) * HOUR_HEIGHT;
+                                        const duration = booking.serviceDuration || 30;
+                                        const height = (duration / 60) * HOUR_HEIGHT;
+                                        const isShort = duration <= 30;
+
+                                        return (
+                                            <motion.div
+                                                key={booking.id}
+                                                initial={{ opacity: 0, scale: 0.96 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                transition={{ duration: 0.2 }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onBookingClick?.(booking.id);
+                                                }}
+                                                className={`absolute left-[3px] right-[3px] rounded-lg border shadow-sm cursor-pointer z-10
+                                                    hover:shadow-lg hover:z-20 hover:brightness-[0.97] active:scale-[0.99] transition-all
+                                                    ${
+                                                        booking.status === "confirmed"
+                                                            ? "bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200"
+                                                            : "bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200"
+                                                    }`}
+                                                style={{
+                                                    top: `${top + 1}px`,
+                                                    height: `${Math.max(height - 2, SLOT_HEIGHT - 4)}px`,
+                                                }}
+                                            >
+                                                <div className={`h-full px-2 flex ${isShort ? "flex-row items-center gap-2" : "flex-col justify-between py-1.5"} overflow-hidden`}>
+                                                    {isShort ? (
+                                                        /* Compact single-row for 30min bookings */
+                                                        <>
+                                                            <span className="font-bold text-pink-900 text-[11px] truncate flex-1">{booking.customerName}</span>
+                                                            <span className="text-pink-500 text-[10px] flex-shrink-0">{booking.time}</span>
+                                                        </>
+                                                    ) : (
+                                                        /* Multi-line for longer bookings */
+                                                        <>
+                                                            <div className="min-w-0">
+                                                                <div className="font-bold text-pink-900 text-[11px] leading-tight truncate">
+                                                                    {booking.customerName}
+                                                                </div>
+                                                                <div className="text-pink-600 text-[10px] leading-tight truncate mt-0.5">
+                                                                    {booking.serviceName}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-pink-400 text-[10px]">{booking.time}</span>
+                                                                <span className="text-pink-400 text-[10px]">{duration}m</span>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
+
+                                    {/* Blocked Times */}
+                                    {dayBlocks.map((block) => {
+                                        const start = timeToFloat(block.startTime);
+                                        const end = timeToFloat(block.endTime);
+                                        const top = TOP_PADDING + (start - 9) * HOUR_HEIGHT;
+                                        const height = (end - start) * HOUR_HEIGHT;
+
+                                        return (
+                                            <div
+                                                key={`block-${block.id}`}
+                                                className="absolute left-[3px] right-[3px] rounded-lg bg-gray-100/80 border border-gray-300/60 flex items-center justify-center group z-[5]"
+                                                style={{
+                                                    top: `${top + 1}px`,
+                                                    height: `${Math.max(height - 2, 20)}px`,
+                                                    backgroundImage:
+                                                        "repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(0,0,0,0.04) 4px, rgba(0,0,0,0.04) 8px)",
+                                                }}
+                                            >
+                                                <span className="text-[10px] text-gray-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity mr-1">
+                                                    Blocked
+                                                </span>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onDeleteBlock(block.id);
+                                                    }}
+                                                    className="opacity-0 group-hover:opacity-100 bg-white text-red-500 rounded-full p-1 shadow-sm hover:bg-red-50 transition-all active:scale-95"
+                                                >
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Drag Selection Preview */}
+                                    {isDragging && selectionStart && isSameDay(day, selectionStart.date) && selectionEnd && (
+                                        <div
+                                            className="absolute left-[3px] right-[3px] bg-blue-500/10 border-2 border-dashed border-blue-400 pointer-events-none z-30 rounded-lg"
+                                            style={{
+                                                top: `${TOP_PADDING + (Math.min(selectionStart.time, selectionEnd.time - 0.5) - 9) * HOUR_HEIGHT}px`,
+                                                height: `${Math.abs(selectionEnd.time - selectionStart.time) * HOUR_HEIGHT}px`,
+                                            }}
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             </div>

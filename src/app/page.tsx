@@ -2,6 +2,7 @@
 
 import Hero from "@/components/Hero";
 import { motion } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -14,6 +15,16 @@ type Service = {
   isPopular: boolean;
 };
 
+const cardGradients = [
+  "from-rose-100 to-pink-50",
+  "from-amber-50 to-yellow-100",
+  "from-violet-50 to-purple-100",
+];
+
+function getServiceSlug(name: string) {
+  return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+}
+
 export default function Home() {
   const [popularServices, setPopularServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +33,6 @@ export default function Home() {
     fetch("/api/services")
       .then((res) => res.json())
       .then((data: { services: Service[] }[]) => {
-        // Flatten all services across categories and filter popular ones
         const allServices = data.flatMap((cat) => cat.services);
         const popular = allServices.filter((s) => s.isPopular).slice(0, 3);
         setPopularServices(popular);
@@ -61,7 +71,7 @@ export default function Home() {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500" />
             </div>
           ) : popularServices.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {popularServices.map((service, i) => (
                 <motion.div
                   key={service.id}
@@ -69,32 +79,61 @@ export default function Home() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.7, delay: i * 0.2, ease: "easeOut" }}
-                  whileHover={{ y: -10 }}
-                  className="glass-card p-10 rounded-[2.5rem] group hover:bg-white/60 flex flex-col"
+                  whileHover={{ y: -8 }}
+                  className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col"
                 >
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <h3 className="text-3xl font-playfair font-bold text-gray-900 group-hover:text-yellow-700 transition-colors">
-                      {service.name}
-                    </h3>
-                    <span className="shrink-0 px-3 py-1 bg-yellow-500 text-white text-xs font-bold uppercase tracking-wide rounded-full shadow-md mt-1">
+                  {/* Service image placeholder */}
+                  <div className={`relative h-56 bg-gradient-to-br ${cardGradients[i % cardGradients.length]} overflow-hidden`}>
+                    <Image
+                      src={`/services/${getServiceSlug(service.name)}.jpg`}
+                      alt={`${service.name} — beauty treatment at Lepotilnica by Karin`}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-7xl font-playfair text-white/10 font-bold select-none">
+                        {service.name.charAt(0)}
+                      </span>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <span className="absolute top-3 right-3 px-3 py-1 bg-yellow-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg">
                       Popular
                     </span>
                   </div>
-                  <p className="text-gray-600 mb-10 leading-relaxed text-lg font-light">
-                    {service.description || "Discover the benefits of this premium treatment."}
-                  </p>
 
-                  <div className="flex items-end justify-between border-t border-gray-100 pt-6">
-                    <div className="flex flex-col">
-                      <span className="text-xs text-gray-400 uppercase tracking-widest font-bold">Starting at</span>
-                      <span className="text-3xl font-playfair font-bold text-gray-900">€{service.price}</span>
-                      <span className="text-xs text-gray-400 mt-1">{service.duration} min</span>
+                  {/* Content */}
+                  <div className="p-8 flex flex-col flex-1">
+                    <h3 className="text-2xl font-playfair font-bold text-gray-900 group-hover:text-yellow-700 transition-colors mb-2">
+                      {service.name}
+                    </h3>
+                    <p className="text-gray-500 leading-relaxed text-sm mb-6 line-clamp-2">
+                      {service.description || "Discover the benefits of this premium treatment."}
+                    </p>
+
+                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-6 mt-auto">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      {service.duration} min
                     </div>
-                    <Link href={`/book?service=${service.id}`} className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center text-white group-hover:bg-yellow-500 transition-colors shadow-lg">
-                      <svg className="w-5 h-5 -rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
-                    </Link>
+
+                    <div className="flex items-end justify-between pt-4 border-t border-gray-100">
+                      <div>
+                        <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold block">Starting at</span>
+                        <span className="text-2xl font-playfair font-bold text-gray-900">€{service.price}</span>
+                      </div>
+                      <Link
+                        href={`/book?service=${service.id}`}
+                        className="w-11 h-11 bg-gray-900 rounded-full flex items-center justify-center text-white group-hover:bg-yellow-500 transition-colors shadow-lg"
+                        aria-label={`Book ${service.name}`}
+                      >
+                        <svg className="w-4 h-4 -rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                      </Link>
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -117,7 +156,7 @@ export default function Home() {
       {/* About Section */}
       <section id="about" className="py-32 bg-gray-900 text-white relative overflow-hidden">
         {/* Decorative elements */}
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 mix-blend-overlay"></div>
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 mix-blend-overlay" />
         <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-purple-900/30 rounded-full filter blur-[120px] mix-blend-screen opacity-40" />
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-yellow-900/20 rounded-full filter blur-[120px] mix-blend-screen opacity-40" />
 
@@ -130,9 +169,20 @@ export default function Home() {
             className="md:w-1/2 relative"
           >
             <div className="relative z-10 aspect-[4/5] bg-gray-800 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
-              {/* Abstract placeholder for Karin's image */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-gray-800 to-gray-700 flex items-center justify-center">
-                <span className="text-8xl font-playfair text-white/5 font-italic">K</span>
+              {/* Replace /about-karin.jpg with the real photo */}
+              <Image
+                src="/about-karin.jpg"
+                alt="Karin — founder and beauty expert at Lepotilnica"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 50vw"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+              {/* Fallback gradient + initial shown behind the image */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-gray-800 to-gray-700 flex items-center justify-center -z-10">
+                <span className="text-8xl font-playfair text-white/5 italic select-none">K</span>
               </div>
             </div>
 
@@ -159,10 +209,10 @@ export default function Home() {
             <div className="space-y-6 text-lg text-gray-400 font-light leading-relaxed">
               <p>
                 With over a decade of experience in the beauty industry, Karin has dedicated her life to mastering the art of esthetics.
-                Lepotilnica is her vision brought to life - a sanctuary where advanced techniques meet timeless relaxation.
+                Lepotilnica is her vision brought to life — a sanctuary where advanced techniques meet timeless relaxation.
               </p>
               <p>
-                "My mission is to reveal the confidence that lies within every client. True beauty is about how you feel, and I am here to help you shine."
+                &ldquo;My mission is to reveal the confidence that lies within every client. True beauty is about how you feel, and I am here to help you shine.&rdquo;
               </p>
             </div>
 
@@ -171,7 +221,7 @@ export default function Home() {
                 Book Appointment
               </Link>
               <div className="font-playfair italic text-gray-500">
-                - Karin
+                — Karin
               </div>
             </div>
           </motion.div>

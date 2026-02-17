@@ -1,13 +1,24 @@
 import { z } from "zod";
 
 export const bookingSchema = z.object({
-    customerName: z.string().min(2, "Name is required"),
-    customerEmail: z.string().email("Invalid email address"),
-    customerPhone: z.string().min(9, "Phone number is required"),
-    serviceId: z.coerce.number().int().positive("Service is required"),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
-    time: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:mm)"),
-    notes: z.string().optional(),
+    customerName: z
+        .string()
+        .min(2, "Name must be at least 2 characters")
+        .max(100, "Name is too long")
+        .regex(/^[a-zA-Z\u00C0-\u017E\s\-'.]+$/, "Name can only contain letters, spaces and hyphens"),
+    customerEmail: z
+        .string()
+        .email("Please enter a valid email address")
+        .max(255, "Email address is too long"),
+    customerPhone: z
+        .string()
+        .min(8, "Phone number must be at least 8 characters")
+        .max(20, "Phone number is too long")
+        .regex(/^\+?[\d\s\-()]{8,20}$/, "Please enter a valid phone number (e.g. +386 40 123 456)"),
+    serviceId: z.coerce.number().int().positive("Please select a service"),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format"),
+    time: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format"),
+    notes: z.string().max(500, "Notes are too long (max 500 characters)").optional(),
 });
 
 export type BookingFormData = z.infer<typeof bookingSchema>;

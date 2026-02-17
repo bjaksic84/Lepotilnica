@@ -3,14 +3,14 @@ import { db } from "@/db";
 import { bookings, blockedTimes, services } from "@/db/schema";
 import { eq, and, not, gte, lte } from "drizzle-orm";
 
-// Generate 30-minute slots from 09:00 to 17:00
+// Generate 30-minute slots from 09:00 to 16:30
+// Last slot must allow the service to finish by 17:00 closing time
 function generateSlots(): string[] {
     const slots: string[] = [];
     for (let h = 9; h < 17; h++) {
         slots.push(`${h.toString().padStart(2, "0")}:00`);
         slots.push(`${h.toString().padStart(2, "0")}:30`);
     }
-    slots.push("17:00");
     return slots;
 }
 
@@ -82,8 +82,8 @@ export async function GET(request: Request) {
         // Filter slots: a slot is available if the full requested duration fits
         const availableSlots = ALL_SLOTS.filter(slot => {
             const slotMin = timeToMinutes(slot);
-            // Check that the service fits within working hours (end by 17:30)
-            if (slotMin + duration > 17 * 60 + 30) return false;
+            // Check that the service fits within working hours (end by 17:00)
+            if (slotMin + duration > 17 * 60) return false;
             // Check none of the minutes in the duration are occupied
             for (let m = slotMin; m < slotMin + duration; m++) {
                 if (occupiedMinutes.has(m)) return false;

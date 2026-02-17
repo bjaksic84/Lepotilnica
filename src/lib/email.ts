@@ -26,8 +26,8 @@ function formatDate(dateStr: string): string {
     });
 }
 
-function formatPrice(cents: number): string {
-    return `€${(cents / 100).toFixed(2)}`;
+function formatPrice(euros: number): string {
+    return `€${euros.toFixed(2)}`;
 }
 
 function getCancelUrl(token: string): string {
