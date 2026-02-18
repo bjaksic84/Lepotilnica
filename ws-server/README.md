@@ -6,20 +6,14 @@ A high-performance real-time WebSocket server built with Rust (axum + tokio) for
 
 - [Rust](https://rustup.rs/) (1.75+ recommended)
 
-## Quick Start
+## Quick Start (local)
 
 ```bash
 cd ws-server
 cargo run
 ```
 
-The server starts on `http://localhost:8080` by default.
-
-## Environment Variables
-
-| Variable  | Default | Description                     |
-|-----------|---------|---------------------------------|
-| `WS_PORT` | `8080`  | Port for the WebSocket server   |
+The server starts on `http://localhost:8000` by default.
 
 ## Endpoints
 
@@ -46,30 +40,17 @@ The server starts on `http://localhost:8080` by default.
 - `service_created`, `service_updated`, `service_deleted`
 - `category_created`, `category_updated`, `category_deleted`
 
-## Production Build
+## Deploy to Railway (recommended)
 
-```bash
-cargo build --release
-./target/release/lepotilnica-ws
-```
-
-## Deploy to Fly.io (recommended)
-
-```bash
-# Install flyctl: https://fly.io/docs/flyctl/install/
-cd ws-server
-
-# First time — creates the app
-fly launch --no-deploy
-fly deploy
-
-# After that, just:
-fly deploy
-```
+1. Go to [railway.app](https://railway.app) and sign in with GitHub
+2. Click **New Project** → **Deploy from GitHub repo**
+3. Select this repo and set the **Root Directory** to `ws-server`
+4. Railway auto-detects the Dockerfile and deploys
+5. Go to **Settings** → **Networking** → **Generate Domain** to get your public URL
 
 Once deployed, update your Vercel environment variables:
 
-| Variable             | Value                                       |
-|----------------------|---------------------------------------------|
-| `NEXT_PUBLIC_WS_URL` | `wss://lepotilnica-ws.fly.dev/ws`          |
-| `WS_BROADCAST_URL`   | `https://lepotilnica-ws.fly.dev/broadcast` |
+| Variable             | Value                                                  |
+|----------------------|--------------------------------------------------------|
+| `NEXT_PUBLIC_WS_URL` | `wss://YOUR-RAILWAY-DOMAIN.up.railway.app/ws`         |
+| `WS_BROADCAST_URL`   | `https://YOUR-RAILWAY-DOMAIN.up.railway.app/broadcast`|

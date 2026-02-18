@@ -69,13 +69,13 @@ async fn main() {
         .layer(cors)
         .with_state(state);
 
-    let port: u16 = std::env::var("WS_PORT")
-        .unwrap_or_else(|_| "8080".to_string())
+    let port: u16 = std::env::var("PORT")
+        .unwrap_or_else(|_| "8000".to_string())
         .parse()
-        .unwrap_or(8080);
+        .unwrap_or(8000);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    info!("🚀 Lepotilnica WebSocket server listening on {}", addr);
+    info!("\u{1f680} Lepotilnica WebSocket server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

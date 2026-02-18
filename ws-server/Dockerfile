@@ -9,6 +9,6 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/lepotilnica-ws /usr/local/bin/
-EXPOSE 8080
-ENV WS_PORT=8080
+EXPOSE 8000
+ENV PORT=8000
 CMD ["lepotilnica-ws"]
