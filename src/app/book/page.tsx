@@ -211,9 +211,9 @@ function BookingContent() {
 
     const getFieldClass = (field: string) => {
         const base =
-            "w-full px-5 py-3.5 rounded-xl bg-gray-50 border outline-none transition-all text-gray-900 placeholder:text-gray-400";
+            "w-full px-5 py-3.5 rounded-xl bg-blush-light border outline-none transition-all text-charcoal placeholder:text-charcoal/30";
         if (!touched[field])
-            return `${base} border-gray-200 focus:border-yellow-400 focus:ring-2 focus:ring-yellow-100`;
+            return `${base} border-dusty-rose/30 focus:border-gold focus:ring-2 focus:ring-gold/10`;
         if (errors[field])
             return `${base} border-red-300 ring-2 ring-red-100 bg-red-50/30`;
         return `${base} border-green-300 ring-2 ring-green-100 bg-green-50/20`;
@@ -295,10 +295,10 @@ function BookingContent() {
     /* ═══════════════════════════════════════════════════ */
 
     return (
-        <div className="min-h-screen pt-28 pb-20 bg-gradient-to-b from-rose-50/40 via-white to-white selection:bg-pink-200">
+        <div className="min-h-screen pt-28 pb-20 bg-gradient-to-b from-blush/30 via-porcelain to-porcelain selection:bg-dusty-rose/40">
             {/* Background blobs */}
-            <div className="fixed top-20 left-0 w-[500px] h-[500px] bg-pink-200 rounded-full mix-blend-multiply filter blur-[120px] opacity-15 -z-10" />
-            <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-yellow-200 rounded-full mix-blend-multiply filter blur-[120px] opacity-15 -z-10" />
+            <div className="fixed top-20 left-0 w-[500px] h-[500px] bg-dusty-rose rounded-full mix-blend-multiply filter blur-[120px] opacity-15 -z-10" />
+            <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-gold-light rounded-full mix-blend-multiply filter blur-[120px] opacity-10 -z-10" />
 
             <div className="container mx-auto px-4 max-w-3xl">
                 {/* Title */}
@@ -307,10 +307,10 @@ function BookingContent() {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center mb-10"
                 >
-                    <h1 className="text-3xl md:text-4xl font-playfair font-bold text-gray-900 mb-2">
+                    <h1 className="text-3xl md:text-4xl font-playfair font-bold text-charcoal mb-2">
                         Book Your Appointment
                     </h1>
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-charcoal/50 text-sm">
                         {step === "confirmation"
                             ? "Your booking is confirmed!"
                             : "Follow the steps below to schedule your treatment"}
@@ -332,8 +332,8 @@ function BookingContent() {
                                                 backgroundColor: done && !current
                                                     ? "#22c55e"
                                                     : current
-                                                        ? "#111827"
-                                                        : "#f3f4f6",
+                                                        ? "#2D2A2A"
+                                                        : "#F2E6E6",
                                             }}
                                             transition={{ type: "spring", stiffness: 400, damping: 25 }}
                                             className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold"
@@ -343,14 +343,14 @@ function BookingContent() {
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                                 </svg>
                                             ) : (
-                                                <span className={current ? "text-white" : "text-gray-400"}>
+                                                <span className={current ? "text-porcelain" : "text-charcoal/40"}>
                                                     {i + 1}
                                                 </span>
                                             )}
                                         </motion.div>
                                         <span
                                             className={`text-[10px] font-semibold tracking-wide uppercase ${
-                                                current ? "text-gray-900" : done ? "text-green-600" : "text-gray-400"
+                                                current ? "text-charcoal" : done ? "text-green-600" : "text-charcoal/40"
                                             }`}
                                         >
                                             {s.label}
@@ -359,7 +359,7 @@ function BookingContent() {
                                     {i < STEP_CONFIG.length - 1 && (
                                         <div
                                             className={`w-10 sm:w-16 h-[2px] mx-1 sm:mx-2 mb-5 rounded-full transition-colors duration-300 ${
-                                                done ? "bg-green-400" : "bg-gray-200"
+                                                done ? "bg-green-400" : "bg-dusty-rose/30"
                                             }`}
                                         />
                                     )}
@@ -377,20 +377,20 @@ function BookingContent() {
                         className="flex flex-wrap items-center justify-center gap-2 mb-8"
                     >
                         {selectedService && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
-                                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-gold" />
                                 {selectedService.name} · €{selectedService.price}
                             </span>
                         )}
                         {selectedDate && step !== "date" && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-dusty-rose" />
                                 {format(selectedDate, "EEE, MMM d")}
                             </span>
                         )}
                         {selectedTime && step !== "time" && step !== "date" && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-medium text-gray-700 border border-gray-200 shadow-sm">
-                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-charcoal/40" />
                                 {selectedTime}
                             </span>
                         )}
@@ -411,16 +411,16 @@ function BookingContent() {
                                 exit="exit"
                                 transition={{ duration: 0.3, ease: "easeInOut" }}
                             >
-                                <h2 className="text-xl font-playfair font-bold text-gray-900 text-center mb-8">
+                                <h2 className="text-xl font-playfair font-bold text-charcoal text-center mb-8">
                                     Choose Your Treatment
                                 </h2>
 
                                 {loadingServices ? (
                                     <div className="flex justify-center py-20">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-yellow-500/30 border-t-yellow-500" />
+                                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-gold/30 border-t-gold" />
                                     </div>
                                 ) : categories.length === 0 ? (
-                                    <div className="text-center py-20 text-gray-500">
+                                    <div className="text-center py-20 text-charcoal/50">
                                         <p>No services available at the moment.</p>
                                     </div>
                                 ) : (
@@ -431,8 +431,8 @@ function BookingContent() {
                                                 <div key={cat.id}>
                                                     {categories.length > 1 && (
                                                         <div className="flex items-center gap-3 mb-4">
-                                                            <div className="w-6 h-[2px] bg-yellow-400 rounded-full" />
-                                                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-[0.15em]">
+                                                            <div className="w-6 h-[2px] bg-gold rounded-full" />
+                                                            <h3 className="text-xs font-bold text-charcoal/40 uppercase tracking-[0.15em]">
                                                                 {cat.name}
                                                             </h3>
                                                         </div>
@@ -446,28 +446,28 @@ function BookingContent() {
                                                                 whileTap={{ scale: 0.98 }}
                                                                 className={`text-left p-5 rounded-2xl border-2 transition-all ${
                                                                     selectedServiceId === service.id
-                                                                        ? "border-yellow-400 bg-yellow-50/50 shadow-md"
-                                                                        : "border-gray-100 bg-white hover:border-gray-200 hover:shadow-sm"
+                                                                        ? "border-gold bg-blush/50 shadow-md"
+                                                                        : "border-dusty-rose/20 bg-porcelain hover:border-dusty-rose/40 hover:shadow-sm"
                                                                 }`}
                                                             >
                                                                 <div className="flex items-start justify-between gap-3 mb-1.5">
-                                                                    <h4 className="font-semibold text-gray-900 text-[15px] leading-tight">
+                                                                    <h4 className="font-semibold text-charcoal text-[15px] leading-tight">
                                                                         {service.name}
                                                                     </h4>
-                                                                    <span className="shrink-0 text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                                                    <span className="shrink-0 text-[11px] font-medium text-charcoal/50 bg-dusty-rose/20 px-2 py-0.5 rounded-full">
                                                                         {service.duration} min
                                                                     </span>
                                                                 </div>
                                                                 {service.description && (
-                                                                    <p className="text-xs text-gray-500 line-clamp-1 mb-2.5">
+                                                                    <p className="text-xs text-charcoal/50 line-clamp-1 mb-2.5">
                                                                         {service.description}
                                                                     </p>
                                                                 )}
                                                                 <div className="flex items-center justify-between">
-                                                                    <span className="text-lg font-bold text-gray-900 font-playfair">
+                                                                    <span className="text-lg font-bold text-charcoal font-playfair">
                                                                         €{service.price}
                                                                     </span>
-                                                                    <span className="text-xs text-yellow-600 font-semibold">
+                                                                    <span className="text-xs text-gold font-semibold">
                                                                         Select →
                                                                     </span>
                                                                 </div>
@@ -497,13 +497,13 @@ function BookingContent() {
                                 <div className="w-full flex items-center mb-8">
                                     <button
                                         onClick={goBack}
-                                        className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-700"
+                                        className="p-2 -ml-2 rounded-full hover:bg-blush transition-colors text-charcoal/40 hover:text-charcoal"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                                         </svg>
                                     </button>
-                                    <h2 className="text-xl font-playfair font-bold text-gray-900 mx-auto pr-7">
+                                    <h2 className="text-xl font-playfair font-bold text-charcoal mx-auto pr-7">
                                         Pick a Date
                                     </h2>
                                 </div>
@@ -528,28 +528,28 @@ function BookingContent() {
                                 <div className="flex items-center mb-2">
                                     <button
                                         onClick={goBack}
-                                        className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-700"
+                                        className="p-2 -ml-2 rounded-full hover:bg-blush transition-colors text-charcoal/40 hover:text-charcoal"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                                         </svg>
                                     </button>
-                                    <h2 className="text-xl font-playfair font-bold text-gray-900 mx-auto pr-7">
+                                    <h2 className="text-xl font-playfair font-bold text-charcoal mx-auto pr-7">
                                         Choose a Time
                                     </h2>
                                 </div>
 
-                                <p className="text-center text-sm text-gray-500 mb-8">
+                                <p className="text-center text-sm text-charcoal/50 mb-8">
                                     {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
                                     {selectedService && (
-                                        <span className="text-gray-400"> · {selectedService.duration} min session</span>
+                                        <span className="text-charcoal/30"> · {selectedService.duration} min session</span>
                                     )}
                                 </p>
 
                                 {loadingSlots ? (
                                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                                         {Array.from({ length: 12 }).map((_, i) => (
-                                            <div key={i} className="h-12 rounded-xl bg-gray-100 animate-pulse" />
+                                            <div key={i} className="h-12 rounded-xl bg-dusty-rose/20 animate-pulse" />
                                         ))}
                                     </div>
                                 ) : (
@@ -567,8 +567,8 @@ function BookingContent() {
                                                         className={`
                                                             py-3 rounded-xl text-sm font-medium transition-all
                                                             ${available
-                                                                ? "bg-white border border-gray-200 text-gray-800 hover:border-yellow-400 hover:shadow-md cursor-pointer"
-                                                                : "bg-gray-50 border border-gray-100 text-gray-300 cursor-not-allowed line-through decoration-gray-200"
+                                                                ? "bg-porcelain border border-dusty-rose/30 text-charcoal hover:border-gold hover:shadow-md cursor-pointer"
+                                                                : "bg-blush-light border border-dusty-rose/15 text-charcoal/20 cursor-not-allowed line-through decoration-dusty-rose/20"
                                                             }
                                                         `}
                                                     >
@@ -580,15 +580,15 @@ function BookingContent() {
 
                                         {availableSlots.length === 0 && (
                                             <div className="text-center py-12 mt-4">
-                                                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <div className="w-12 h-12 bg-blush rounded-full flex items-center justify-center mx-auto mb-4">
+                                                    <svg className="w-6 h-6 text-charcoal/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
                                                 </div>
-                                                <p className="text-gray-500 mb-2">No available times for this date.</p>
+                                                <p className="text-charcoal/50 mb-2">No available times for this date.</p>
                                                 <button
                                                     onClick={goBack}
-                                                    className="text-yellow-600 text-sm font-medium hover:underline"
+                                                    className="text-gold text-sm font-medium hover:underline"
                                                 >
                                                     ← Try another date
                                                 </button>
@@ -596,20 +596,20 @@ function BookingContent() {
                                         )}
 
                                         {availableSlots.length > 0 && availableSlots.length <= 4 && (
-                                            <p className="text-center text-xs text-amber-600 mt-4 font-medium">
+                                            <p className="text-center text-xs text-gold-dark mt-4 font-medium">
                                                 Limited availability — book soon!
                                             </p>
                                         )}
 
                                         {/* Legend */}
-                                        <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-gray-100">
+                                        <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-dusty-rose/20">
                                             <div className="flex items-center gap-1.5">
-                                                <div className="w-3 h-3 rounded bg-white border border-gray-200" />
-                                                <span className="text-[10px] text-gray-400">Available</span>
+                                                <div className="w-3 h-3 rounded bg-porcelain border border-dusty-rose/30" />
+                                                <span className="text-[10px] text-charcoal/40">Available</span>
                                             </div>
                                             <div className="flex items-center gap-1.5">
-                                                <div className="w-3 h-3 rounded bg-gray-50 border border-gray-100" />
-                                                <span className="text-[10px] text-gray-400">Unavailable</span>
+                                                <div className="w-3 h-3 rounded bg-blush-light border border-dusty-rose/15" />
+                                                <span className="text-[10px] text-charcoal/40">Unavailable</span>
                                             </div>
                                         </div>
                                     </>
@@ -631,28 +631,28 @@ function BookingContent() {
                                 <div className="flex items-center mb-8">
                                     <button
                                         onClick={goBack}
-                                        className="p-2 -ml-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-700"
+                                        className="p-2 -ml-2 rounded-full hover:bg-blush transition-colors text-charcoal/40 hover:text-charcoal"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                                         </svg>
                                     </button>
-                                    <h2 className="text-xl font-playfair font-bold text-gray-900 mx-auto pr-7">
+                                    <h2 className="text-xl font-playfair font-bold text-charcoal mx-auto pr-7">
                                         Your Details
                                     </h2>
                                 </div>
 
                                 {/* Booking Summary Card */}
-                                <div className="bg-gray-50 rounded-2xl p-5 mb-8 border border-gray-100">
+                                <div className="bg-blush/50 rounded-2xl p-5 mb-8 border border-dusty-rose/30">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="font-semibold text-gray-900">{selectedService?.name}</p>
-                                            <p className="text-gray-500 text-xs mt-0.5">
+                                            <p className="font-semibold text-charcoal">{selectedService?.name}</p>
+                                            <p className="text-charcoal/50 text-xs mt-0.5">
                                                 {selectedDate && format(selectedDate, "EEEE, MMMM d")} at {selectedTime}{" "}
                                                 · {selectedService?.duration} min
                                             </p>
                                         </div>
-                                        <span className="text-xl font-bold font-playfair text-gray-900">
+                                        <span className="text-xl font-bold font-playfair text-charcoal">
                                             €{selectedService?.price}
                                         </span>
                                     </div>
@@ -667,7 +667,7 @@ function BookingContent() {
 
                                     {/* Name */}
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider pl-1">
+                                        <label className="text-xs font-semibold text-charcoal/50 uppercase tracking-wider pl-1">
                                             Full Name
                                         </label>
                                         <input
@@ -699,7 +699,7 @@ function BookingContent() {
                                     {/* Email + Phone */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                         <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider pl-1">
+                                            <label className="text-xs font-semibold text-charcoal/50 uppercase tracking-wider pl-1">
                                                 Email
                                             </label>
                                             <input
@@ -728,7 +728,7 @@ function BookingContent() {
                                             )}
                                         </div>
                                         <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider pl-1">
+                                            <label className="text-xs font-semibold text-charcoal/50 uppercase tracking-wider pl-1">
                                                 Phone
                                             </label>
                                             <input
@@ -760,18 +760,18 @@ function BookingContent() {
 
                                     {/* Notes */}
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider pl-1">
-                                            Notes <span className="text-gray-400 normal-case">(optional)</span>
+                                        <label className="text-xs font-semibold text-charcoal/50 uppercase tracking-wider pl-1">
+                                            Notes <span className="text-charcoal/30 normal-case">(optional)</span>
                                         </label>
                                         <textarea
                                             value={notes}
                                             onChange={(e) => setNotes(e.target.value)}
-                                            className="w-full px-5 py-3.5 rounded-xl bg-gray-50 border border-gray-200 outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-100 transition-all h-24 resize-none text-gray-900 placeholder:text-gray-400"
+                                            className="w-full px-5 py-3.5 rounded-xl bg-blush-light border border-dusty-rose/30 outline-none focus:border-gold focus:ring-2 focus:ring-gold/10 transition-all h-24 resize-none text-charcoal placeholder:text-charcoal/30"
                                             placeholder="Any special requests, allergies, or notes?"
                                             maxLength={500}
                                         />
                                         {notes.length > 400 && (
-                                            <p className="text-xs text-gray-400 text-right">{notes.length}/500</p>
+                                            <p className="text-xs text-charcoal/30 text-right">{notes.length}/500</p>
                                         )}
                                     </div>
 
@@ -779,18 +779,18 @@ function BookingContent() {
                                     <button
                                         type="submit"
                                         disabled={submitting}
-                                        className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold text-[15px] hover:bg-gray-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-lg hover:shadow-xl mt-2"
+                                        className="w-full py-4 bg-charcoal text-porcelain rounded-xl font-bold text-[15px] hover:bg-charcoal/90 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-lg hover:shadow-xl mt-2"
                                     >
                                         {submitting ? (
                                             <span className="flex items-center justify-center gap-2">
-                                                <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
+                                                <span className="animate-spin rounded-full h-4 w-4 border-2 border-porcelain/30 border-t-porcelain" />
                                                 Confirming booking...
                                             </span>
                                         ) : (
                                             <span className="flex items-center justify-center gap-2">
                                                 Confirm Booking
-                                                <span className="text-white/50">·</span>
-                                                <span className="text-white/80">€{selectedService?.price}</span>
+                                                <span className="text-porcelain/50">·</span>
+                                                <span className="text-porcelain/80">€{selectedService?.price}</span>
                                             </span>
                                         )}
                                     </button>
@@ -826,31 +826,31 @@ function BookingContent() {
                                     </svg>
                                 </motion.div>
 
-                                <h2 className="text-2xl font-playfair font-bold text-gray-900 mb-2">
+                                <h2 className="text-2xl font-playfair font-bold text-charcoal mb-2">
                                     Booking Confirmed!
                                 </h2>
-                                <p className="text-gray-500 text-sm mb-8">
+                                <p className="text-charcoal/50 text-sm mb-8">
                                     A confirmation email has been sent to{" "}
-                                    <span className="font-medium text-gray-700">{email}</span>
+                                    <span className="font-medium text-charcoal">{email}</span>
                                 </p>
 
-                                <div className="bg-white border border-gray-100 rounded-2xl p-6 max-w-sm mx-auto mb-8 shadow-sm">
-                                    <p className="font-semibold text-gray-900 text-lg mb-0.5">{selectedService?.name}</p>
-                                    <p className="text-gray-500 text-sm mb-4">
+                                <div className="bg-porcelain border border-dusty-rose/30 rounded-2xl p-6 max-w-sm mx-auto mb-8 shadow-sm">
+                                    <p className="font-semibold text-charcoal text-lg mb-0.5">{selectedService?.name}</p>
+                                    <p className="text-charcoal/50 text-sm mb-4">
                                         {selectedService?.duration} minutes · €{selectedService?.price}
                                     </p>
-                                    <div className="flex items-center justify-center gap-3 py-3 bg-gray-50 rounded-xl text-sm font-semibold text-gray-900">
+                                    <div className="flex items-center justify-center gap-3 py-3 bg-blush/50 rounded-xl text-sm font-semibold text-charcoal">
                                         <span>{selectedDate && format(selectedDate, "EEE, MMM d, yyyy")}</span>
-                                        <span className="text-gray-300">|</span>
+                                        <span className="text-charcoal/20">|</span>
                                         <span>{selectedTime}</span>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-3">Booked for {name}</p>
+                                    <p className="text-xs text-charcoal/40 mt-3">Booked for {name}</p>
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                                     <button
                                         onClick={() => router.push("/")}
-                                        className="px-8 py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors"
+                                        className="px-8 py-3 bg-charcoal text-porcelain rounded-xl font-semibold hover:bg-charcoal/90 transition-colors"
                                     >
                                         Return Home
                                     </button>
@@ -867,7 +867,7 @@ function BookingContent() {
                                             setErrors({});
                                             setTouched({});
                                         }}
-                                        className="px-8 py-3 bg-white text-gray-700 rounded-xl font-semibold border border-gray-200 hover:bg-gray-50 transition-colors"
+                                        className="px-8 py-3 bg-porcelain text-charcoal rounded-xl font-semibold border border-dusty-rose/30 hover:bg-blush transition-colors"
                                     >
                                         Book Another
                                     </button>
@@ -885,8 +885,8 @@ export default function BookingPage() {
     return (
         <Suspense
             fallback={
-                <div className="min-h-screen bg-gradient-to-b from-rose-50/40 to-white flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-10 w-10 border-2 border-yellow-500/30 border-t-yellow-500" />
+                <div className="min-h-screen bg-gradient-to-b from-blush/30 to-porcelain flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-2 border-gold/30 border-t-gold" />
                 </div>
             }
         >

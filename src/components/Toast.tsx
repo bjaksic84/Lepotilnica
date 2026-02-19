@@ -36,9 +36,9 @@ export function useToast() {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 const typeStyles: Record<ToastType, { bg: string; icon: string; border: string }> = {
-    info: { bg: "bg-blue-50", icon: "text-blue-500", border: "border-blue-200" },
+    info: { bg: "bg-blush/60", icon: "text-charcoal/60", border: "border-dusty-rose/30" },
     success: { bg: "bg-green-50", icon: "text-green-500", border: "border-green-200" },
-    warning: { bg: "bg-yellow-50", icon: "text-yellow-600", border: "border-yellow-200" },
+    warning: { bg: "bg-gold/10", icon: "text-gold-dark", border: "border-gold/30" },
     error: { bg: "bg-red-50", icon: "text-red-500", border: "border-red-200" },
 };
 
@@ -87,14 +87,14 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
                     {typeIcons[toast.type]}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm text-gray-900">{toast.title}</p>
+                    <p className="font-bold text-sm text-charcoal">{toast.title}</p>
                     {toast.message && (
-                        <p className="text-sm text-gray-600 mt-0.5">{toast.message}</p>
+                        <p className="text-sm text-charcoal/60 mt-0.5">{toast.message}</p>
                     )}
                 </div>
                 <button
                     onClick={() => onDismiss(toast.id)}
-                    className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="flex-shrink-0 text-charcoal/30 hover:text-charcoal/60 transition-colors"
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

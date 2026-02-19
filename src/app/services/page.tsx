@@ -27,7 +27,7 @@ export default async function ServicesPage() {
     }));
 
     return (
-        <main className="min-h-screen bg-white pt-32 pb-20">
+        <main className="min-h-screen bg-porcelain pt-32 pb-20">
             {/* Hero Section - Client Component for animations */}
             <ServicesHero />
 
@@ -46,16 +46,16 @@ import Link from "next/link";
 function ServicesCTA() {
     return (
         <section className="container mx-auto px-4 text-center mt-32">
-            <div className="glass-panel p-12 rounded-3xl max-w-3xl mx-auto transform transition-all hover:scale-105 duration-500">
-                <h2 className="text-4xl font-playfair font-bold text-gray-900 mb-4">
+            <div className="glass-panel p-12 rounded-3xl max-w-3xl mx-auto transform transition-all hover:scale-[1.02] duration-500">
+                <h2 className="text-4xl font-playfair font-bold text-charcoal mb-4">
                     Ready to Experience Luxury?
                 </h2>
-                <p className="text-gray-600 text-lg mb-8 font-light">
+                <p className="text-charcoal/50 text-lg mb-8 font-light">
                     Book your appointment today and let us take care of you.
                 </p>
                 <Link
                     href="/book"
-                    className="inline-block px-12 py-4 bg-yellow-500 text-gray-900 rounded-full font-bold hover:bg-yellow-400 transition-all shadow-[0_0_20px_rgba(234,179,8,0.4)]"
+                    className="inline-block px-12 py-4 bg-gold text-charcoal rounded-full font-bold hover:bg-gold-light transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
                 >
                     Book Appointment
                 </Link>

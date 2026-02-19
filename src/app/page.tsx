@@ -16,9 +16,9 @@ type Service = {
 };
 
 const cardGradients = [
-  "from-rose-100 to-pink-50",
-  "from-amber-50 to-yellow-100",
-  "from-violet-50 to-purple-100",
+  "from-dusty-rose/40 to-blush",
+  "from-blush to-porcelain",
+  "from-dusty-rose/30 to-blush/60",
 ];
 
 function getServiceSlug(name: string) {
@@ -41,14 +41,16 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-white selection:bg-pink-200">
+    <main className="min-h-screen bg-porcelain">
       <Hero />
 
       {/* Services Preview Section */}
       <section id="services" className="py-32 relative overflow-hidden">
-        {/* Background Gradients */}
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-pink-50/50 rounded-full mix-blend-multiply filter blur-[120px] opacity-60 -translate-y-1/2 translate-x-1/2 -z-10" />
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-yellow-50/50 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 translate-y-1/2 -translate-x-1/4 -z-10" />
+        {/* Subtle aurora background */}
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] rounded-full opacity-30 -translate-y-1/2 translate-x-1/2 -z-10"
+          style={{ background: "radial-gradient(circle, rgba(232,213,213,0.4) 0%, transparent 70%)" }} />
+        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full opacity-20 translate-y-1/2 -translate-x-1/4 -z-10"
+          style={{ background: "radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)" }} />
 
         <div className="container mx-auto px-4 relative z-10">
           <motion.div
@@ -58,17 +60,17 @@ export default function Home() {
             transition={{ duration: 0.8, ease: "easeOut" }}
             className="text-center mb-20"
           >
-            <span className="text-yellow-600 font-bold tracking-widest uppercase mb-4 text-sm block">Premium Care</span>
-            <h2 className="text-5xl md:text-6xl font-playfair font-bold text-gray-900 mb-6">Our Services</h2>
-            <div className="w-24 h-1.5 bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 mx-auto rounded-full" />
-            <p className="mt-8 text-gray-600 text-xl max-w-2xl mx-auto font-light leading-relaxed">
+            <span className="text-gold font-semibold tracking-[0.15em] uppercase mb-4 text-xs block">Premium Care</span>
+            <h2 className="text-5xl md:text-6xl font-playfair font-bold text-charcoal mb-6">Our Services</h2>
+            <div className="w-24 h-px bg-gradient-to-r from-transparent via-gold to-transparent mx-auto" />
+            <p className="mt-8 text-charcoal/50 text-xl max-w-2xl mx-auto font-light leading-relaxed">
               Indulge in our curated selection of treatments designed to rejuvenate your body, mind, and spirit.
             </p>
           </motion.div>
 
           {loading ? (
             <div className="flex justify-center py-20">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500" />
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold" />
             </div>
           ) : popularServices.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -80,7 +82,7 @@ export default function Home() {
                   viewport={{ once: true }}
                   transition={{ duration: 0.7, delay: i * 0.2, ease: "easeOut" }}
                   whileHover={{ y: -8 }}
-                  className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col"
+                  className="bg-porcelain rounded-2xl overflow-hidden border border-dusty-rose/30 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col"
                 >
                   {/* Service image placeholder */}
                   <div className={`relative h-56 bg-gradient-to-br ${cardGradients[i % cardGradients.length]} overflow-hidden`}>
@@ -100,33 +102,33 @@ export default function Home() {
                       </span>
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <span className="absolute top-3 right-3 px-3 py-1 bg-yellow-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg">
+                    <span className="absolute top-3 right-3 px-3 py-1 bg-gold text-charcoal text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg">
                       Popular
                     </span>
                   </div>
 
                   {/* Content */}
                   <div className="p-8 flex flex-col flex-1">
-                    <h3 className="text-2xl font-playfair font-bold text-gray-900 group-hover:text-yellow-700 transition-colors mb-2">
+                    <h3 className="text-2xl font-playfair font-bold text-charcoal group-hover:text-gold-dark transition-colors mb-2">
                       {service.name}
                     </h3>
-                    <p className="text-gray-500 leading-relaxed text-sm mb-6 line-clamp-2">
+                    <p className="text-charcoal/50 leading-relaxed text-sm mb-6 line-clamp-2">
                       {service.description || "Discover the benefits of this premium treatment."}
                     </p>
 
-                    <div className="flex items-center gap-2 text-xs text-gray-400 mb-6 mt-auto">
+                    <div className="flex items-center gap-2 text-xs text-charcoal/40 mb-6 mt-auto">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                       {service.duration} min
                     </div>
 
-                    <div className="flex items-end justify-between pt-4 border-t border-gray-100">
+                    <div className="flex items-end justify-between pt-4 border-t border-dusty-rose/30">
                       <div>
-                        <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold block">Starting at</span>
-                        <span className="text-2xl font-playfair font-bold text-gray-900">€{service.price}</span>
+                        <span className="text-[10px] text-charcoal/40 uppercase tracking-widest font-semibold block">Starting at</span>
+                        <span className="text-2xl font-playfair font-bold text-charcoal">€{service.price}</span>
                       </div>
                       <Link
                         href={`/book?service=${service.id}`}
-                        className="w-11 h-11 bg-gray-900 rounded-full flex items-center justify-center text-white group-hover:bg-yellow-500 transition-colors shadow-lg"
+                        className="w-11 h-11 bg-charcoal rounded-full flex items-center justify-center text-porcelain group-hover:bg-gold transition-colors shadow-lg"
                         aria-label={`Book ${service.name}`}
                       >
                         <svg className="w-4 h-4 -rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -139,14 +141,14 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-20 text-gray-500">
+            <div className="text-center py-20 text-charcoal/50">
               <p className="text-lg">No popular services available at the moment.</p>
               <p className="text-sm mt-2">Check back soon for our featured treatments!</p>
             </div>
           )}
 
           <div className="text-center mt-16">
-            <Link href="/services" className="btn-secondary px-12 text-lg">
+            <Link href="/services" className="btn-secondary px-12">
               View Full Menu
             </Link>
           </div>
@@ -154,11 +156,13 @@ export default function Home() {
       </section>
 
       {/* About Section */}
-      <section id="about" className="py-32 bg-gray-900 text-white relative overflow-hidden">
+      <section id="about" className="py-32 bg-charcoal text-porcelain relative overflow-hidden">
         {/* Decorative elements */}
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 mix-blend-overlay" />
-        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-purple-900/30 rounded-full filter blur-[120px] mix-blend-screen opacity-40" />
-        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-yellow-900/20 rounded-full filter blur-[120px] mix-blend-screen opacity-40" />
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg width=\"20\" height=\"20\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cpath d=\"M0 0h20v20H0z\" fill=\"none\" stroke=\"%23F9F5F2\" stroke-opacity=\"0.3\"/%3E%3C/svg%3E')" }} />
+        <div className="absolute top-0 left-0 w-[500px] h-[500px] rounded-full filter blur-[120px] opacity-20"
+          style={{ background: "radial-gradient(circle, rgba(232,213,213,0.3) 0%, transparent 70%)" }} />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full filter blur-[120px] opacity-15"
+          style={{ background: "radial-gradient(circle, rgba(212,175,55,0.15) 0%, transparent 70%)" }} />
 
         <div className="container mx-auto px-4 flex flex-col md:flex-row items-center gap-20 relative z-10">
           <motion.div
@@ -168,8 +172,7 @@ export default function Home() {
             transition={{ duration: 1, ease: "easeOut" }}
             className="md:w-1/2 relative"
           >
-            <div className="relative z-10 aspect-[4/5] bg-gray-800 rounded-3xl overflow-hidden shadow-2xl border border-white/10">
-              {/* Replace /about-karin.jpg with the real photo */}
+            <div className="relative z-10 aspect-[4/5] bg-charcoal/80 rounded-3xl overflow-hidden shadow-2xl border border-porcelain/10">
               <Image
                 src="/about-karin.jpg"
                 alt="Karin — founder and beauty expert at Lepotilnica"
@@ -180,17 +183,16 @@ export default function Home() {
                   (e.target as HTMLImageElement).style.display = "none";
                 }}
               />
-              {/* Fallback gradient + initial shown behind the image */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-gray-800 to-gray-700 flex items-center justify-center -z-10">
-                <span className="text-8xl font-playfair text-white/5 italic select-none">K</span>
+              <div className="absolute inset-0 bg-gradient-to-tr from-charcoal/80 to-charcoal/40 flex items-center justify-center -z-10">
+                <span className="text-8xl font-playfair text-porcelain/5 italic select-none">K</span>
               </div>
             </div>
 
             {/* Decorative Frames */}
-            <div className="absolute inset-0 border border-yellow-500/30 rounded-3xl translate-x-4 translate-y-4 -z-10" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-gray-800/80 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col justify-center items-center text-center shadow-xl">
-              <span className="text-4xl font-bold text-yellow-500 font-playfair">10+</span>
-              <span className="text-xs text-gray-400 uppercase tracking-widest mt-2">Years of<br />Experience</span>
+            <div className="absolute inset-0 border border-gold/20 rounded-3xl translate-x-4 translate-y-4 -z-10" />
+            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-charcoal/80 backdrop-blur-md rounded-2xl border border-porcelain/10 p-6 flex flex-col justify-center items-center text-center shadow-xl">
+              <span className="text-4xl font-bold text-gold font-playfair">10+</span>
+              <span className="text-xs text-porcelain/40 uppercase tracking-widest mt-2">Years of<br />Experience</span>
             </div>
           </motion.div>
 
@@ -201,12 +203,12 @@ export default function Home() {
             transition={{ duration: 0.8 }}
             className="md:w-1/2"
           >
-            <span className="text-yellow-500 font-bold tracking-widest uppercase mb-4 text-sm block">The Artist</span>
+            <span className="text-gold font-semibold tracking-[0.15em] uppercase mb-4 text-xs block">The Artist</span>
             <h2 className="text-5xl md:text-6xl font-playfair font-bold mb-8 leading-tight">
               Dedicated to the <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-yellow-400 to-yellow-600">Art of Beauty</span>
+              <span className="text-gold-gradient">Art of Beauty</span>
             </h2>
-            <div className="space-y-6 text-lg text-gray-400 font-light leading-relaxed">
+            <div className="space-y-6 text-lg text-porcelain/50 font-light leading-relaxed">
               <p>
                 With over a decade of experience in the beauty industry, Karin has dedicated her life to mastering the art of esthetics.
                 Lepotilnica is her vision brought to life — a sanctuary where advanced techniques meet timeless relaxation.
@@ -217,10 +219,10 @@ export default function Home() {
             </div>
 
             <div className="mt-12 flex items-center gap-6">
-              <Link href="/book" className="px-10 py-4 bg-yellow-500 text-gray-900 rounded-full font-bold hover:bg-yellow-400 transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(234,179,8,0.4)]">
+              <Link href="/book" className="px-10 py-4 bg-gold text-charcoal rounded-full font-bold hover:bg-gold-light transition-all transform hover:scale-[1.03] shadow-[0_0_20px_rgba(212,175,55,0.3)]">
                 Book Appointment
               </Link>
-              <div className="font-playfair italic text-gray-500">
+              <div className="font-playfair italic text-porcelain/40">
                 — Karin
               </div>
             </div>
