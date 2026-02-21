@@ -253,8 +253,10 @@ export async function GET() {
             todaysBookings: todaysBookings.map(b => ({
                 time: b.time,
                 customerName: b.customerName,
+                customerEmail: b.customerEmail,
                 serviceName: b.serviceName,
                 status: b.status,
+                bookingId: b.id,
             })),
             loyalCustomers,
         });

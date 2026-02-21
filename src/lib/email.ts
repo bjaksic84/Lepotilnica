@@ -56,13 +56,13 @@ function buildConfirmationHtml(data: BookingEmailData): string {
           
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 100%);padding:40px 40px 32px;text-align:center;">
-              <h1 style="margin:0;font-size:28px;font-weight:300;color:#ffffff;letter-spacing:2px;font-family:Georgia,'Times New Roman',serif;">
-                LEPOTILNICA
-              </h1>
-              <p style="margin:4px 0 0;font-size:12px;color:#d4a853;letter-spacing:4px;text-transform:uppercase;">
-                by Karin
-              </p>
+            <td style="background:linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 100%);padding:32px 40px;text-align:center;">
+              <img
+                src="${process.env.NEXT_PUBLIC_BASE_URL || 'https://lepotilnica.si'}/logo.png"
+                alt="Lepotilnica by Karin"
+                width="180"
+                style="height:auto;display:inline-block;max-width:180px;"
+              />
             </td>
           </tr>
 

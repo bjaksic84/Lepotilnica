@@ -35,7 +35,7 @@ export default function BookingCalendar({
     const isPast = (date: Date) => isBefore(date, startOfDay(new Date()));
     const isWeekend = (date: Date) => {
         const d = getDay(date);
-        return d === 0 || d === 6; // Sunday = 0, Saturday = 6
+        return d === 0; // Sunday = 0 (Saturday is now open)
     };
 
     // Monday-start offset: getDay returns 0=Sun, 1=Mon, ..., 6=Sat
@@ -73,7 +73,7 @@ export default function BookingCalendar({
             {/* Day headers — Monday start */}
             <div className="grid grid-cols-7 gap-1 mb-2 text-center text-[11px] font-bold text-charcoal/40 uppercase tracking-widest">
                 {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
-                    <div key={d} className={d === "Sa" || d === "Su" ? "text-charcoal/20" : ""}>
+                    <div key={d} className={d === "Su" ? "text-charcoal/20" : ""}>
                         {d}
                     </div>
                 ))}

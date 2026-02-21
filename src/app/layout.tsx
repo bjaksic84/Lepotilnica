@@ -71,6 +71,11 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  icons: {
+    icon: "/logo-3.png",
+    apple: "/logo-3.png",
+    shortcut: "/logo-3.png",
+  },
 };
 
 import Navbar from "@/components/Navbar";
@@ -105,7 +110,7 @@ function JsonLd() {
     openingHoursSpecification: [
       {
         "@type": "OpeningHoursSpecification",
-        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
         opens: "09:00",
         closes: "17:00",
       },
@@ -128,11 +133,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <head>
         <JsonLd />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/favicon.svg" />
       </head>
       <body className={`${playfair.variable} ${dmSans.variable} antialiased`}>
         <Navbar />

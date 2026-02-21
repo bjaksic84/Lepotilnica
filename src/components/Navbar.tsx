@@ -34,22 +34,14 @@ export default function Navbar() {
                 <div className="container mx-auto flex justify-between items-center px-4">
                     <Link href="/" className="flex items-center gap-3 group">
                         {/* Logo */}
-                        <div className="relative w-10 h-10 rounded-full overflow-hidden bg-charcoal flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
-                            <Image
-                                src="/logo.png"
-                                alt="Lepotilnica by Karin"
-                                width={40}
-                                height={40}
-                                className="object-cover"
-                                onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display = "none";
-                                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
-                                }}
-                            />
-                            <span className="hidden absolute inset-0 flex items-center justify-center text-porcelain font-playfair text-lg font-bold">
-                                L
-                            </span>
-                        </div>
+                        <Image
+                            src="/logo.png"
+                            alt="Lepotilnica by Karin"
+                            width={56}
+                            height={56}
+                            className="h-12 w-auto object-contain"
+                            priority
+                        />
                         <div className="flex flex-col">
                             <span className="font-playfair font-bold text-lg tracking-tight text-charcoal leading-tight">
                                 Lepotilnica

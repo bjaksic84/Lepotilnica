@@ -36,7 +36,7 @@ type AnalyticsData = {
     popularTimeSlots: { time: string; count: number }[];
     busiestDay: { day: string; count: number } | null;
     dailyRevenue: { date: string; revenue: number }[];
-    todaysBookings: { time: string; customerName: string; serviceName: string; status: string }[];
+    todaysBookings: { time: string; customerName: string; customerEmail: string; serviceName: string; status: string; bookingId: number }[];
     loyalCustomers: {
         name: string;
         email: string;
@@ -58,6 +58,7 @@ export default function AdminPage() {
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [noShowMap, setNoShowMap] = useState<Record<string, number>>({});
 
     const router = useRouter();
     const { toasts, addToast, removeToast } = useToast();
@@ -143,8 +144,55 @@ export default function AdminPage() {
         }
     };
 
+    const fetchNoShows = async () => {
+        try {
+            const res = await fetch("/api/admin/no-show");
+            if (res.ok) {
+                const records = await res.json();
+                const map: Record<string, number> = {};
+                for (const r of records) map[r.customerEmail] = r.count;
+                setNoShowMap(map);
+            }
+        } catch (error) {
+            console.error("Failed to fetch no-show data", error);
+        }
+    };
+
+    const handleNoShow = async (bookingId: number) => {
+        const booking = bookings.find(b => b.id === bookingId) || selectedBooking;
+        const name = booking?.customerName || "this customer";
+        if (!confirm(`Mark ${name} as a No-Show? This will cancel the booking and count toward their blacklist.`)) return;
+        try {
+            const res = await fetch("/api/admin/no-show", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ bookingId }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                addToast({
+                    type: data.isBlacklisted ? "warning" : "info",
+                    title: data.isBlacklisted ? "Customer Blacklisted" : "No-Show Recorded",
+                    message: data.message,
+                });
+                fetchData();
+                fetchNoShows();
+                if (activeTab === "stats") fetchAnalytics();
+                if (selectedBooking?.id === bookingId) setSelectedBooking(null);
+            } else {
+                alert("Failed to record no-show");
+            }
+        } catch (error) {
+            alert("Error recording no-show");
+        }
+    };
+
+    const isBlacklisted = (email: string) => (noShowMap[email?.toLowerCase()] || 0) >= 2;
+    const getNoShowCount = (email: string) => noShowMap[email?.toLowerCase()] || 0;
+
     useEffect(() => {
         fetchData();
+        fetchNoShows();
     }, [viewDate]);
 
     useEffect(() => {
@@ -223,7 +271,7 @@ export default function AdminPage() {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={() => setSelectedBooking(null)}>
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
                     <div
-                        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                        className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isBlacklisted(selectedBooking.customerEmail) ? 'ring-2 ring-red-500' : ''}`}
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Modal Header */}
@@ -257,13 +305,21 @@ export default function AdminPage() {
                             </div>
 
                             {/* Customer Info */}
-                            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                            <div className={`rounded-xl p-4 space-y-3 ${isBlacklisted(selectedBooking.customerEmail) ? 'bg-red-50 border border-red-200' : 'bg-gray-50'}`}>
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
-                                        <span className="text-pink-700 font-bold text-sm">{selectedBooking.customerName.charAt(0).toUpperCase()}</span>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isBlacklisted(selectedBooking.customerEmail) ? 'bg-red-200' : 'bg-pink-100'}`}>
+                                        <span className={`font-bold text-sm ${isBlacklisted(selectedBooking.customerEmail) ? 'text-red-700' : 'text-pink-700'}`}>{selectedBooking.customerName.charAt(0).toUpperCase()}</span>
                                     </div>
-                                    <div>
-                                        <div className="font-bold text-gray-900">{selectedBooking.customerName}</div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-gray-900">{selectedBooking.customerName}</span>
+                                            {isBlacklisted(selectedBooking.customerEmail) && (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-red-100 text-red-700 tracking-wide">Blacklisted</span>
+                                            )}
+                                            {getNoShowCount(selectedBooking.customerEmail) === 1 && (
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-100 text-amber-700 tracking-wide">1 No-Show</span>
+                                            )}
+                                        </div>
                                         <div className="text-xs text-gray-400">Customer</div>
                                     </div>
                                 </div>
@@ -317,33 +373,46 @@ export default function AdminPage() {
                         </div>
 
                         {/* Modal Footer Actions */}
-                        <div className="border-t border-gray-100 px-6 py-4 flex gap-2">
-                            {selectedBooking.status !== 'cancelled' && (
+                        <div className="border-t border-gray-100 px-6 py-4 flex flex-col gap-2">
+                            <div className="flex gap-2">
+                                {selectedBooking.status !== 'cancelled' && (
+                                    <button
+                                        onClick={() => handleNoShow(selectedBooking.id)}
+                                        className="flex-1 px-4 py-2.5 bg-amber-50 text-amber-700 rounded-xl text-sm font-bold hover:bg-amber-100 transition-colors flex items-center justify-center gap-1.5"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                                        No-Show
+                                    </button>
+                                )}
+                                {selectedBooking.status !== 'cancelled' && (
+                                    <button
+                                        onClick={() => {
+                                            handleStatusUpdate(selectedBooking.id, 'cancelled');
+                                            setSelectedBooking(null);
+                                        }}
+                                        className="flex-1 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
                                 <button
                                     onClick={() => {
-                                        handleStatusUpdate(selectedBooking.id, 'cancelled');
+                                        handleDelete(selectedBooking.id);
                                         setSelectedBooking(null);
                                     }}
-                                    className="flex-1 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors"
+                                    className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
                                 >
-                                    Cancel Booking
+                                    Delete
                                 </button>
-                            )}
-                            <button
-                                onClick={() => {
-                                    handleDelete(selectedBooking.id);
-                                    setSelectedBooking(null);
-                                }}
-                                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
-                            >
-                                Delete
-                            </button>
-                            <button
-                                onClick={() => setSelectedBooking(null)}
-                                className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors"
-                            >
-                                Close
-                            </button>
+                                <button
+                                    onClick={() => setSelectedBooking(null)}
+                                    className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors"
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -443,11 +512,20 @@ export default function AdminPage() {
                         {/* Mobile Card View */}
                         <div className="grid grid-cols-1 gap-3 md:hidden">
                             {bookings.sort((a, b) => new Date(b.date + 'T' + b.time).getTime() - new Date(a.date + 'T' + a.time).getTime()).map((booking) => (
-                                <div key={booking.id} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-3">
+                                <div key={booking.id} className={`bg-white p-5 rounded-xl shadow-sm flex flex-col gap-3 ${isBlacklisted(booking.customerEmail) ? 'border-2 border-red-400 ring-1 ring-red-200' : 'border border-gray-100'}`}>
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <div className="font-bold text-gray-900">{format(new Date(booking.date), "EEE, MMM d")} at {booking.time}</div>
-                                            <div className="text-sm text-gray-500">{booking.serviceName} ({booking.serviceDuration} min)</div>
+                                            <div className="font-bold text-gray-900 flex items-center gap-2">
+                                                {booking.customerName}
+                                                {isBlacklisted(booking.customerEmail) && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700">Blacklisted</span>
+                                                )}
+                                                {getNoShowCount(booking.customerEmail) === 1 && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700">1 No-Show</span>
+                                                )}
+                                            </div>
+                                            <div className="text-sm text-gray-500">{format(new Date(booking.date), "EEE, MMM d")} at {booking.time}</div>
+                                            <div className="text-sm text-gray-400">{booking.serviceName} ({booking.serviceDuration} min)</div>
                                         </div>
                                         <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : booking.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
                                             {booking.status}
@@ -455,10 +533,14 @@ export default function AdminPage() {
                                     </div>
                                     <div className="pt-3 border-t border-gray-50 flex justify-between items-center">
                                         <div>
-                                            <div className="font-medium text-sm text-gray-900">{booking.customerName}</div>
                                             <div className="text-xs text-gray-400">{booking.customerPhone}</div>
                                         </div>
                                         <div className="flex gap-2">
+                                            {booking.status !== 'cancelled' && (
+                                                <button onClick={() => handleNoShow(booking.id)} className="p-2 text-amber-600 bg-amber-50 rounded-full" title="No-Show">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                                                </button>
+                                            )}
                                             {booking.status !== 'cancelled' && (
                                                 <button onClick={() => handleStatusUpdate(booking.id, 'cancelled')} className="p-2 text-red-500 bg-red-50 rounded-full" title="Cancel">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -488,13 +570,21 @@ export default function AdminPage() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {bookings.sort((a, b) => new Date(b.date + 'T' + b.time).getTime() - new Date(a.date + 'T' + a.time).getTime()).map((booking) => (
-                                        <tr key={booking.id} className="hover:bg-gray-50/50 transition-colors">
+                                        <tr key={booking.id} className={`transition-colors ${isBlacklisted(booking.customerEmail) ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-gray-50/50'}`}>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="font-bold text-gray-900">{format(new Date(booking.date), "MMM d")}</div>
                                                 <div className="text-gray-400 text-xs">{booking.time}</div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="font-medium text-gray-900">{booking.customerName}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-medium text-gray-900">{booking.customerName}</span>
+                                                    {isBlacklisted(booking.customerEmail) && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700 tracking-wide">Blacklisted</span>
+                                                    )}
+                                                    {getNoShowCount(booking.customerEmail) === 1 && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700 tracking-wide">1 No-Show</span>
+                                                    )}
+                                                </div>
                                                 <div className="text-xs text-gray-400">{booking.customerPhone}</div>
                                             </td>
                                             <td className="px-6 py-4">
@@ -511,6 +601,11 @@ export default function AdminPage() {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-1">
+                                                    {booking.status !== 'cancelled' && (
+                                                        <button onClick={() => handleNoShow(booking.id)} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="No-Show">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                                                        </button>
+                                                    )}
                                                     {booking.status !== 'cancelled' && (
                                                         <button onClick={() => handleStatusUpdate(booking.id, 'cancelled')} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Cancel Booking">
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -693,15 +788,34 @@ export default function AdminPage() {
                                         {analytics.todaysBookings.length > 0 ? (
                                             <div className="space-y-2">
                                                 {analytics.todaysBookings.map((b, i) => (
-                                                    <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                                                    <div key={i} className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${isBlacklisted(b.customerEmail) ? 'bg-red-50 border border-red-200 hover:bg-red-100' : 'bg-gray-50 hover:bg-gray-100'}`}>
                                                         <span className="text-sm font-mono font-bold text-gray-900 w-12">{b.time}</span>
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="text-sm font-medium text-gray-900 truncate">{b.customerName}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-medium text-gray-900 truncate">{b.customerName}</span>
+                                                                {isBlacklisted(b.customerEmail) && (
+                                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700 flex-shrink-0">Blacklisted</span>
+                                                                )}
+                                                                {getNoShowCount(b.customerEmail) === 1 && (
+                                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700 flex-shrink-0">1 No-Show</span>
+                                                                )}
+                                                            </div>
                                                             <div className="text-xs text-gray-400 truncate">{b.serviceName}</div>
                                                         </div>
-                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
-                                                            {b.status}
-                                                        </span>
+                                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                            {b.status === 'confirmed' && (
+                                                                <button
+                                                                    onClick={() => handleNoShow(b.bookingId)}
+                                                                    className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors"
+                                                                    title="Mark No-Show"
+                                                                >
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                                                                </button>
+                                                            )}
+                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                                                                {b.status}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>

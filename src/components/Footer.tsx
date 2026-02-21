@@ -14,20 +14,14 @@ export default function Footer() {
                     {/* Brand */}
                     <div className="lg:col-span-1">
                         <Link href="/" className="flex items-center gap-3 mb-6 group">
-                            <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-gold/10 flex items-center justify-center">
+                            <div className="bg-beige rounded-xl p-1.5">
                                 <Image
                                     src="/logo.png"
-                                    alt="Lepotilnica logo"
-                                    width={40}
-                                    height={40}
-                                    className="object-contain"
-                                    onError={(e) => {
-                                        (e.target as HTMLImageElement).style.display = "none";
-                                    }}
+                                    alt="Lepotilnica by Karin"
+                                    width={72}
+                                    height={72}
+                                    className="h-14 w-auto object-contain"
                                 />
-                                <span className="absolute inset-0 flex items-center justify-center text-gold font-playfair font-bold text-lg">
-                                    L
-                                </span>
                             </div>
                             <div>
                                 <span className="text-porcelain font-playfair font-bold text-lg block leading-tight group-hover:text-gold transition-colors">
@@ -109,12 +103,8 @@ export default function Footer() {
                         <h4 className="text-porcelain text-xs font-bold uppercase tracking-[0.15em] mb-6">Opening Hours</h4>
                         <ul className="space-y-3 text-sm text-porcelain/40">
                             <li className="flex justify-between">
-                                <span>Monday — Friday</span>
+                                <span>Monday — Saturday</span>
                                 <span className="text-porcelain font-medium">9:00 — 17:00</span>
-                            </li>
-                            <li className="flex justify-between">
-                                <span>Saturday</span>
-                                <span className="text-porcelain/30">Closed</span>
                             </li>
                             <li className="flex justify-between">
                                 <span>Sunday</span>

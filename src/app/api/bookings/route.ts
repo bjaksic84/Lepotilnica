@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { bookings, blockedTimes, services } from "@/db/schema";
+import { bookings, blockedTimes, services, noShows } from "@/db/schema";
 import { bookingSchema } from "@/lib/validators";
 import { eq, and, not } from "drizzle-orm";
 import { broadcast } from "@/lib/broadcast";
@@ -36,6 +36,20 @@ export async function POST(request: Request) {
         }
 
         const { date, time, serviceId } = result.data;
+
+        // ── Blacklist check ──────────────────────────────────────
+        const noShowRecord = await db
+            .select()
+            .from(noShows)
+            .where(eq(noShows.customerEmail, result.data.customerEmail.toLowerCase()))
+            .get();
+
+        if (noShowRecord && noShowRecord.count >= 2) {
+            return NextResponse.json(
+                { error: "This email address has been restricted from making bookings due to repeated no-shows. Please contact us directly." },
+                { status: 403 }
+            );
+        }
 
         // Look up service duration
         const service = await db.select().from(services).where(eq(services.id, serviceId)).get();
