@@ -68,7 +68,7 @@ export default function Hero() {
                         className="mb-6"
                     >
                         <span className="inline-block px-4 py-1.5 rounded-full border border-gold/30 bg-blush/50 text-gold-dark text-xs font-semibold tracking-[0.15em] uppercase backdrop-blur-sm">
-                            Est. 2014
+                            Est. 2025
                         </span>
                     </motion.div>
 

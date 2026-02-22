@@ -4,15 +4,19 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = "Lepotilnica by Karin <onboarding@resend.dev>";
 
-interface BookingEmailData {
-    customerName: string;
-    customerEmail: string;
+interface BookingEmailItem {
     serviceName: string;
     servicePrice: number;
     serviceDuration: number;
-    date: string;       // YYYY-MM-DD
-    time: string;       // HH:mm
+    time: string;        // HH:mm (computed start time for this service)
     cancellationToken: string;
+}
+
+interface BookingEmailData {
+    customerName: string;
+    customerEmail: string;
+    date: string;       // YYYY-MM-DD
+    items: BookingEmailItem[];
 }
 
 function formatDate(dateStr: string): string {
@@ -36,9 +40,35 @@ function getCancelUrl(token: string): string {
 }
 
 function buildConfirmationHtml(data: BookingEmailData): string {
-    const cancelUrl = getCancelUrl(data.cancellationToken);
     const formattedDate = formatDate(data.date);
-    const formattedPrice = formatPrice(data.servicePrice);
+    const totalPrice = data.items.reduce((sum, i) => sum + i.servicePrice, 0);
+    const totalDuration = data.items.reduce((sum, i) => sum + i.serviceDuration, 0);
+    const isSingle = data.items.length === 1;
+
+    const serviceRowsHtml = data.items.map(item => `
+                    <!-- Service: ${item.serviceName} -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+                      <tr>
+                        <td width="40" valign="top" style="padding-right:14px;">
+                          <div style="width:36px;height:36px;background:#1a1a1a;border-radius:50%;text-align:center;line-height:36px;font-size:16px;">
+                            ✨
+                          </div>
+                        </td>
+                        <td valign="top">
+                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Service</p>
+                          <p style="margin:4px 0 0;font-size:16px;color:#1a1a1a;font-weight:600;">${item.serviceName}</p>
+                          <p style="margin:2px 0 0;font-size:13px;color:#555;">${item.time} · ${item.serviceDuration} min · ${formatPrice(item.servicePrice)}</p>
+                        </td>
+                      </tr>
+                    </table>`).join('\n');
+
+    const cancelLinksHtml = data.items.map(item => {
+        const cancelUrl = getCancelUrl(item.cancellationToken);
+        return `
+                    <a href="${cancelUrl}" style="display:inline-block;margin:4px 4px;padding:10px 24px;background:#1a1a1a;color:#ffffff;text-decoration:none;border-radius:50px;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">
+                      Cancel ${isSingle ? 'Appointment' : item.serviceName}
+                    </a>`;
+    }).join('\n');
 
     return `
 <!DOCTYPE html>
@@ -76,7 +106,7 @@ function buildConfirmationHtml(data: BookingEmailData): string {
                 Hello, ${data.customerName}!
               </h2>
               <p style="margin:12px 0 0;font-size:15px;color:#555;line-height:1.6;">
-                Your appointment has been confirmed. We look forward to seeing you!
+                Your appointment${isSingle ? '' : 's'} ha${isSingle ? 's' : 've'} been confirmed. We look forward to seeing you!
               </p>
             </td>
           </tr>
@@ -87,20 +117,7 @@ function buildConfirmationHtml(data: BookingEmailData): string {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf5f0;border-radius:12px;border:1px solid #f0e6d8;">
                 <tr>
                   <td style="padding:28px;">
-                    <!-- Service -->
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
-                      <tr>
-                        <td width="40" valign="top" style="padding-right:14px;">
-                          <div style="width:36px;height:36px;background:#1a1a1a;border-radius:50%;text-align:center;line-height:36px;font-size:16px;">
-                            ✨
-                          </div>
-                        </td>
-                        <td valign="top">
-                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Service</p>
-                          <p style="margin:4px 0 0;font-size:16px;color:#1a1a1a;font-weight:600;">${data.serviceName}</p>
-                        </td>
-                      </tr>
-                    </table>
+                    ${serviceRowsHtml}
                     
                     <!-- Date & Time -->
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;">
@@ -111,9 +128,9 @@ function buildConfirmationHtml(data: BookingEmailData): string {
                           </div>
                         </td>
                         <td valign="top">
-                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Date & Time</p>
+                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Date</p>
                           <p style="margin:4px 0 0;font-size:16px;color:#1a1a1a;font-weight:600;">${formattedDate}</p>
-                          <p style="margin:2px 0 0;font-size:14px;color:#555;">${data.time} · ${data.serviceDuration} minutes</p>
+                          <p style="margin:2px 0 0;font-size:14px;color:#555;">Starting at ${data.items[0].time} · ${totalDuration} minutes total</p>
                         </td>
                       </tr>
                     </table>
@@ -127,8 +144,8 @@ function buildConfirmationHtml(data: BookingEmailData): string {
                           </div>
                         </td>
                         <td valign="top">
-                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Price</p>
-                          <p style="margin:4px 0 0;font-size:20px;color:#1a1a1a;font-weight:700;">${formattedPrice}</p>
+                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Total Price</p>
+                          <p style="margin:4px 0 0;font-size:20px;color:#1a1a1a;font-weight:700;">${formatPrice(totalPrice)}</p>
                         </td>
                       </tr>
                     </table>
@@ -147,9 +164,7 @@ function buildConfirmationHtml(data: BookingEmailData): string {
                     <p style="margin:0 0 6px;font-size:13px;color:#888;line-height:1.5;">
                       Need to cancel? You can cancel up to <strong style="color:#1a1a1a;">24 hours</strong> before your appointment.
                     </p>
-                    <a href="${cancelUrl}" style="display:inline-block;margin-top:12px;padding:12px 32px;background:#1a1a1a;color:#ffffff;text-decoration:none;border-radius:50px;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">
-                      Cancel Appointment
-                    </a>
+                    ${cancelLinksHtml}
                   </td>
                 </tr>
               </table>
@@ -186,10 +201,15 @@ function buildConfirmationHtml(data: BookingEmailData): string {
 
 export async function sendBookingConfirmation(data: BookingEmailData): Promise<{ success: boolean; error?: string }> {
     try {
+        const isSingle = data.items.length === 1;
+        const subjectService = isSingle
+            ? data.items[0].serviceName
+            : `${data.items.length} services`;
+
         const { error } = await resend.emails.send({
             from: FROM_EMAIL,
             to: [data.customerEmail],
-            subject: `Booking Confirmed – ${data.serviceName} on ${formatDate(data.date)}`,
+            subject: `Booking Confirmed – ${subjectService} on ${formatDate(data.date)}`,
             html: buildConfirmationHtml(data),
         });
 

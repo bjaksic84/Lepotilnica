@@ -15,6 +15,13 @@
       "when": 1771710000000,
       "tag": "0001_add_no_shows",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1771693626924,
+      "tag": "0002_fluffy_silvermane",
+      "breakpoints": true
     }
   ]
 }

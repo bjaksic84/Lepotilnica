@@ -1,29 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { bookings, blockedTimes, services } from "@/db/schema";
-import { eq, and, not, gte, lte } from "drizzle-orm";
-
-// Generate 30-minute slots from 09:00 to 16:30
-// Last slot must allow the service to finish by 17:00 closing time
-function generateSlots(): string[] {
-    const slots: string[] = [];
-    for (let h = 9; h < 17; h++) {
-        slots.push(`${h.toString().padStart(2, "0")}:00`);
-        slots.push(`${h.toString().padStart(2, "0")}:30`);
-    }
-    return slots;
-}
-
-function timeToMinutes(time: string): number {
-    const [h, m] = time.split(":").map(Number);
-    return h * 60 + m;
-}
-
-function minutesToTime(minutes: number): string {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-}
+import { eq, and, not } from "drizzle-orm";
+import { generateSlotsForDateStr, getClosingMinutes, timeToMinutes } from "@/lib/schedule";
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -35,6 +14,12 @@ export async function GET(request: Request) {
     }
 
     try {
+        const closingMin = getClosingMinutes(date);
+        if (closingMin === 0) {
+            // Salon is closed on this day
+            return NextResponse.json({ date, slots: [], bookedTimes: [], blockedSlots: [] });
+        }
+
         // Get all bookings for the date that are not cancelled, with service duration
         const bookedSlots = await db
             .select({
@@ -56,7 +41,8 @@ export async function GET(request: Request) {
             .from(blockedTimes)
             .where(eq(blockedTimes.date, date));
 
-        const ALL_SLOTS = generateSlots();
+        // Day-specific 30-min slots (respects day-of-week opening hours)
+        const ALL_SLOTS = generateSlotsForDateStr(date);
 
         // Build a set of occupied minutes
         const occupiedMinutes = new Set<number>();
@@ -82,8 +68,8 @@ export async function GET(request: Request) {
         // Filter slots: a slot is available if the full requested duration fits
         const availableSlots = ALL_SLOTS.filter(slot => {
             const slotMin = timeToMinutes(slot);
-            // Check that the service fits within working hours (end by 17:00)
-            if (slotMin + duration > 17 * 60) return false;
+            // Check that the service fits within working hours
+            if (slotMin + duration > closingMin) return false;
             // Check none of the minutes in the duration are occupied
             for (let m = slotMin; m < slotMin + duration; m++) {
                 if (occupiedMinutes.has(m)) return false;

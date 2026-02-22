@@ -28,7 +28,7 @@ export const bookings = sqliteTable("bookings", {
     customerName: text("customer_name").notNull(),
     customerEmail: text("customer_email").notNull(),
     customerPhone: text("customer_phone"),
-    serviceId: integer("service_id").references(() => services.id).notNull(),
+    serviceId: integer("service_id").references(() => services.id, { onDelete: "cascade" }).notNull(),
     date: text("date").notNull(), // YYYY-MM-DD
     time: text("time").notNull(), // HH:mm
     status: text("status", { enum: ["pending", "confirmed", "cancelled"] }).default("pending").notNull(),

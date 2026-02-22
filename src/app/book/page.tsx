@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo } from "react";
+import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import BookingCalendar from "@/components/BookingCalendar";
-import { bookingSchema } from "@/lib/validators";
+import { multiBookingSchema } from "@/lib/validators";
+import { generateSlotsForDateStr, timeToMinutes, minutesToTime } from "@/lib/schedule";
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -29,13 +30,6 @@ type Step = "service" | "date" | "time" | "details" | "confirmation";
 
 /* ─── Constants ──────────────────────────────────────── */
 
-// All 30-min slots from 09:00 to 16:30 (salon closes at 17:00)
-const ALL_SLOTS: string[] = [];
-for (let h = 9; h < 17; h++) {
-    ALL_SLOTS.push(`${h.toString().padStart(2, "0")}:00`);
-    ALL_SLOTS.push(`${h.toString().padStart(2, "0")}:30`);
-}
-
 const STEP_CONFIG: { key: Step; label: string }[] = [
     { key: "service", label: "Service" },
     { key: "date", label: "Date" },
@@ -57,18 +51,26 @@ function BookingContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
-    // Pre-selected service from URL (?service=X)
-    const preServiceId = searchParams.get("service");
-    const hasPreSelected = preServiceId !== null && !isNaN(Number(preServiceId));
+    // Pre-selected service(s) from URL (?service=X or ?services=X,Y,Z)
+    const preServiceIds: number[] = useMemo(() => {
+        const multi = searchParams.get("services");
+        if (multi) {
+            return multi.split(",").map(Number).filter((n) => !isNaN(n) && n > 0);
+        }
+        const single = searchParams.get("service");
+        if (single && !isNaN(Number(single))) {
+            return [Number(single)];
+        }
+        return [];
+    }, [searchParams]);
+    const hasPreSelected = preServiceIds.length > 0;
 
     /* ── State ──────────────── */
     const [step, setStep] = useState<Step>(hasPreSelected ? "date" : "service");
     const [direction, setDirection] = useState(0);
 
     // Booking selections
-    const [selectedServiceId, setSelectedServiceId] = useState<number | null>(
-        hasPreSelected ? Number(preServiceId) : null
-    );
+    const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>(preServiceIds);
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
@@ -94,18 +96,49 @@ function BookingContent() {
         () => categories.flatMap((c) => c.services),
         [categories]
     );
-    const selectedService = useMemo(
-        () => allServices.find((s) => s.id === selectedServiceId) ?? null,
-        [allServices, selectedServiceId]
+    const selectedServices = useMemo(
+        () => selectedServiceIds.map((id) => allServices.find((s) => s.id === id)).filter(Boolean) as Service[],
+        [allServices, selectedServiceIds]
+    );
+    const totalDuration = useMemo(
+        () => selectedServices.reduce((sum, s) => sum + s.duration, 0),
+        [selectedServices]
+    );
+    const totalPrice = useMemo(
+        () => selectedServices.reduce((sum, s) => sum + s.price, 0),
+        [selectedServices]
+    );
+
+    // Day-specific 30-min slots (computed when date is selected)
+    const daySlots = useMemo(() => {
+        if (!selectedDate) return [];
+        return generateSlotsForDateStr(format(selectedDate, "yyyy-MM-dd"));
+    }, [selectedDate]);
+
+    // Compute each service's start time given the selected start time
+    const getServiceTime = useCallback(
+        (index: number): string => {
+            if (!selectedTime) return "";
+            let minutes = timeToMinutes(selectedTime);
+            for (let i = 0; i < index; i++) {
+                minutes += selectedServices[i].duration;
+            }
+            return minutesToTime(minutes);
+        },
+        [selectedTime, selectedServices]
     );
 
     // Dynamic step sequence (skip service step if pre-selected & valid)
     const stepSequence: Step[] = useMemo(() => {
-        if (hasPreSelected && selectedServiceId && allServices.some((s) => s.id === selectedServiceId)) {
+        if (
+            hasPreSelected &&
+            selectedServiceIds.length > 0 &&
+            selectedServiceIds.every((id) => allServices.some((s) => s.id === id))
+        ) {
             return ["date", "time", "details"];
         }
         return ["service", "date", "time", "details"];
-    }, [hasPreSelected, selectedServiceId, allServices]);
+    }, [hasPreSelected, selectedServiceIds, allServices]);
 
     /* ── Effects ────────────── */
 
@@ -121,25 +154,30 @@ function BookingContent() {
     // Validate pre-selected service once services load
     useEffect(() => {
         if (hasPreSelected && !loadingServices && allServices.length > 0) {
-            if (!allServices.some((s) => s.id === Number(preServiceId))) {
-                setSelectedServiceId(null);
+            const validIds = selectedServiceIds.filter((id) =>
+                allServices.some((s) => s.id === id)
+            );
+            if (validIds.length === 0) {
+                setSelectedServiceIds([]);
                 setStep("service");
+            } else if (validIds.length !== selectedServiceIds.length) {
+                setSelectedServiceIds(validIds);
             }
         }
-    }, [loadingServices, allServices, hasPreSelected, preServiceId]);
+    }, [loadingServices, allServices, hasPreSelected, preServiceIds]);
 
-    // Fetch availability when date or service changes
+    // Fetch availability when date or services change
     useEffect(() => {
-        if (!selectedDate || !selectedService) return;
+        if (!selectedDate || selectedServices.length === 0) return;
         setLoadingSlots(true);
         setAvailableSlots([]);
         const dateStr = format(selectedDate, "yyyy-MM-dd");
-        fetch(`/api/availability?date=${dateStr}&duration=${selectedService.duration}`)
+        fetch(`/api/availability?date=${dateStr}&duration=${totalDuration}`)
             .then((r) => r.json())
             .then((data) => setAvailableSlots(data.slots || []))
             .catch(console.error)
             .finally(() => setLoadingSlots(false));
-    }, [selectedDate, selectedService]);
+    }, [selectedDate, totalDuration, selectedServices.length]);
 
     /* ── Navigation ─────────── */
     const goTo = (target: Step) => {
@@ -156,9 +194,18 @@ function BookingContent() {
     };
 
     /* ── Step Handlers ──────── */
-    const handleServiceSelect = (id: number) => {
-        setSelectedServiceId(id);
+    const handleServiceToggle = (id: number) => {
+        setSelectedServiceIds((prev) => {
+            if (prev.includes(id)) {
+                return prev.filter((x) => x !== id);
+            }
+            return [...prev, id];
+        });
         setSelectedTime(null); // Reset time (duration may differ)
+    };
+
+    const handleServicesContinue = () => {
+        if (selectedServiceIds.length === 0) return;
         goTo("date");
     };
 
@@ -222,7 +269,7 @@ function BookingContent() {
     /* ── Submit ──────────────── */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedDate || !selectedTime || !selectedServiceId) return;
+        if (!selectedDate || !selectedTime || selectedServiceIds.length === 0) return;
 
         // Touch all fields
         setTouched({ name: true, email: true, phone: true });
@@ -231,13 +278,13 @@ function BookingContent() {
             customerName: name.trim(),
             customerEmail: email.trim(),
             customerPhone: phone.trim(),
-            serviceId: selectedServiceId,
+            serviceIds: selectedServiceIds,
             date: format(selectedDate, "yyyy-MM-dd"),
             time: selectedTime,
             notes: notes.trim() || undefined,
         };
 
-        const result = bookingSchema.safeParse(payload);
+        const result = multiBookingSchema.safeParse(payload);
         if (!result.success) {
             const fieldErrors: Record<string, string> = {};
             const flat = result.error.flatten().fieldErrors;
@@ -280,7 +327,7 @@ function BookingContent() {
         if (step === "confirmation") return true;
         switch (s) {
             case "service":
-                return !!selectedServiceId;
+                return selectedServiceIds.length > 0;
             case "date":
                 return !!selectedDate;
             case "time":
@@ -376,10 +423,12 @@ function BookingContent() {
                         animate={{ opacity: 1, y: 0 }}
                         className="flex flex-wrap items-center justify-center gap-2 mb-8"
                     >
-                        {selectedService && (
+                        {selectedServices.length > 0 && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm">
                                 <span className="w-1.5 h-1.5 rounded-full bg-gold" />
-                                {selectedService.name} · €{selectedService.price}
+                                {selectedServices.length === 1
+                                    ? `${selectedServices[0].name} · €${selectedServices[0].price}`
+                                    : `${selectedServices.length} services · €${totalPrice}`}
                             </span>
                         )}
                         {selectedDate && step !== "date" && (
@@ -411,9 +460,12 @@ function BookingContent() {
                                 exit="exit"
                                 transition={{ duration: 0.3, ease: "easeInOut" }}
                             >
-                                <h2 className="text-xl font-playfair font-bold text-charcoal text-center mb-8">
-                                    Choose Your Treatment
+                                <h2 className="text-xl font-playfair font-bold text-charcoal text-center mb-2">
+                                    Choose Your Treatment{selectedServiceIds.length > 0 ? "s" : ""}
                                 </h2>
+                                <p className="text-center text-xs text-charcoal/40 mb-8">
+                                    Select one or more services, then continue
+                                </p>
 
                                 {loadingServices ? (
                                     <div className="flex justify-center py-20">
@@ -438,45 +490,96 @@ function BookingContent() {
                                                         </div>
                                                     )}
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                        {cat.services.map((service) => (
-                                                            <motion.button
-                                                                key={service.id}
-                                                                onClick={() => handleServiceSelect(service.id)}
-                                                                whileHover={{ scale: 1.02 }}
-                                                                whileTap={{ scale: 0.98 }}
-                                                                className={`text-left p-5 rounded-2xl border-2 transition-all ${
-                                                                    selectedServiceId === service.id
-                                                                        ? "border-gold bg-blush/50 shadow-md"
-                                                                        : "border-dusty-rose/20 bg-porcelain hover:border-dusty-rose/40 hover:shadow-sm"
-                                                                }`}
-                                                            >
-                                                                <div className="flex items-start justify-between gap-3 mb-1.5">
-                                                                    <h4 className="font-semibold text-charcoal text-[15px] leading-tight">
-                                                                        {service.name}
-                                                                    </h4>
-                                                                    <span className="shrink-0 text-[11px] font-medium text-charcoal/50 bg-dusty-rose/20 px-2 py-0.5 rounded-full">
-                                                                        {service.duration} min
-                                                                    </span>
-                                                                </div>
-                                                                {service.description && (
-                                                                    <p className="text-xs text-charcoal/50 line-clamp-1 mb-2.5">
-                                                                        {service.description}
-                                                                    </p>
-                                                                )}
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-lg font-bold text-charcoal font-playfair">
-                                                                        €{service.price}
-                                                                    </span>
-                                                                    <span className="text-xs text-gold font-semibold">
-                                                                        Select →
-                                                                    </span>
-                                                                </div>
-                                                            </motion.button>
-                                                        ))}
+                                                        {cat.services.map((service) => {
+                                                            const isSelected = selectedServiceIds.includes(service.id);
+                                                            const selectionIndex = selectedServiceIds.indexOf(service.id);
+                                                            return (
+                                                                <motion.button
+                                                                    key={service.id}
+                                                                    onClick={() => handleServiceToggle(service.id)}
+                                                                    whileHover={{ scale: 1.02 }}
+                                                                    whileTap={{ scale: 0.98 }}
+                                                                    className={`text-left p-5 rounded-2xl border-2 transition-all ${
+                                                                        isSelected
+                                                                            ? "border-gold bg-blush/50 shadow-md"
+                                                                            : "border-dusty-rose/20 bg-porcelain hover:border-dusty-rose/40 hover:shadow-sm"
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-start justify-between gap-3 mb-1.5">
+                                                                        <div className="flex items-start gap-2.5">
+                                                                            <div className={`w-5 h-5 rounded-md border-2 mt-0.5 flex items-center justify-center flex-shrink-0 transition-all ${
+                                                                                isSelected
+                                                                                    ? "bg-gold border-gold"
+                                                                                    : "border-charcoal/20 bg-porcelain"
+                                                                            }`}>
+                                                                                {isSelected && (
+                                                                                    <svg className="w-3 h-3 text-charcoal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                                                    </svg>
+                                                                                )}
+                                                                            </div>
+                                                                            <h4 className="font-semibold text-charcoal text-[15px] leading-tight">
+                                                                                {service.name}
+                                                                            </h4>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1.5 shrink-0">
+                                                                            {isSelected && (
+                                                                                <span className="text-[10px] font-bold text-gold bg-gold/10 px-1.5 py-0.5 rounded">
+                                                                                    #{selectionIndex + 1}
+                                                                                </span>
+                                                                            )}
+                                                                            <span className="text-[11px] font-medium text-charcoal/50 bg-dusty-rose/20 px-2 py-0.5 rounded-full">
+                                                                                {service.duration} min
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    {service.description && (
+                                                                        <p className="text-xs text-charcoal/50 line-clamp-1 mb-2.5 pl-7">
+                                                                            {service.description}
+                                                                        </p>
+                                                                    )}
+                                                                    <div className="flex items-center justify-between pl-7">
+                                                                        <span className="text-lg font-bold text-charcoal font-playfair">
+                                                                            €{service.price}
+                                                                        </span>
+                                                                        <span className={`text-xs font-semibold transition-colors ${
+                                                                            isSelected ? "text-gold" : "text-charcoal/30"
+                                                                        }`}>
+                                                                            {isSelected ? "Selected ✓" : "+ Add"}
+                                                                        </span>
+                                                                    </div>
+                                                                </motion.button>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             );
                                         })}
+
+                                        {/* Continue button */}
+                                        <AnimatePresence>
+                                            {selectedServiceIds.length > 0 && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 20 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: 20 }}
+                                                    className="sticky bottom-4 pt-4"
+                                                >
+                                                    <button
+                                                        onClick={handleServicesContinue}
+                                                        className="w-full py-4 bg-charcoal text-porcelain rounded-xl font-bold text-[15px] hover:bg-charcoal/90 transition-all shadow-lg hover:shadow-xl"
+                                                    >
+                                                        <span className="flex items-center justify-center gap-2">
+                                                            Continue with {selectedServiceIds.length} service{selectedServiceIds.length > 1 ? "s" : ""}
+                                                            <span className="text-porcelain/50">·</span>
+                                                            <span className="text-porcelain/80">€{totalPrice}</span>
+                                                            <span className="text-porcelain/50">·</span>
+                                                            <span className="text-porcelain/60 text-sm">{totalDuration} min</span>
+                                                        </span>
+                                                    </button>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
                                 )}
                             </motion.div>
@@ -541,8 +644,8 @@ function BookingContent() {
 
                                 <p className="text-center text-sm text-charcoal/50 mb-8">
                                     {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
-                                    {selectedService && (
-                                        <span className="text-charcoal/30"> · {selectedService.duration} min session</span>
+                                    {selectedServices.length > 0 && (
+                                        <span className="text-charcoal/30"> · {totalDuration} min total</span>
                                     )}
                                 </p>
 
@@ -555,7 +658,7 @@ function BookingContent() {
                                 ) : (
                                     <>
                                         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                                            {ALL_SLOTS.map((time) => {
+                                            {daySlots.map((time) => {
                                                 const available = availableSlots.includes(time);
                                                 return (
                                                     <motion.button
@@ -644,16 +747,32 @@ function BookingContent() {
 
                                 {/* Booking Summary Card */}
                                 <div className="bg-blush/50 rounded-2xl p-5 mb-8 border border-dusty-rose/30">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="font-semibold text-charcoal">{selectedService?.name}</p>
-                                            <p className="text-charcoal/50 text-xs mt-0.5">
-                                                {selectedDate && format(selectedDate, "EEEE, MMMM d")} at {selectedTime}{" "}
-                                                · {selectedService?.duration} min
-                                            </p>
-                                        </div>
+                                    <div className="space-y-3">
+                                        {selectedServices.map((service, i) => (
+                                            <div key={service.id} className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-semibold text-charcoal text-sm">
+                                                        {selectedServices.length > 1 && (
+                                                            <span className="text-gold text-xs mr-1.5">#{i + 1}</span>
+                                                        )}
+                                                        {service.name}
+                                                    </p>
+                                                    <p className="text-charcoal/50 text-xs mt-0.5">
+                                                        {getServiceTime(i)} · {service.duration} min
+                                                    </p>
+                                                </div>
+                                                <span className="text-charcoal font-bold font-playfair">
+                                                    €{service.price}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="border-t border-dusty-rose/30 mt-3 pt-3 flex items-center justify-between">
+                                        <p className="text-charcoal/50 text-xs">
+                                            {selectedDate && format(selectedDate, "EEEE, MMMM d")} · {totalDuration} min total
+                                        </p>
                                         <span className="text-xl font-bold font-playfair text-charcoal">
-                                            €{selectedService?.price}
+                                            €{totalPrice}
                                         </span>
                                     </div>
                                 </div>
@@ -790,7 +909,7 @@ function BookingContent() {
                                             <span className="flex items-center justify-center gap-2">
                                                 Confirm Booking
                                                 <span className="text-porcelain/50">·</span>
-                                                <span className="text-porcelain/80">€{selectedService?.price}</span>
+                                                <span className="text-porcelain/80">€{totalPrice}</span>
                                             </span>
                                         )}
                                     </button>
@@ -835,9 +954,20 @@ function BookingContent() {
                                 </p>
 
                                 <div className="bg-porcelain border border-dusty-rose/30 rounded-2xl p-6 max-w-sm mx-auto mb-8 shadow-sm">
-                                    <p className="font-semibold text-charcoal text-lg mb-0.5">{selectedService?.name}</p>
-                                    <p className="text-charcoal/50 text-sm mb-4">
-                                        {selectedService?.duration} minutes · €{selectedService?.price}
+                                    {selectedServices.map((service, i) => (
+                                        <div key={service.id} className="flex justify-between text-sm mb-1">
+                                            <span className="text-charcoal">{service.name}</span>
+                                            <span className="text-charcoal/50">€{service.price}</span>
+                                        </div>
+                                    ))}
+                                    {selectedServices.length > 1 && (
+                                        <div className="border-t border-dusty-rose/20 mt-2 pt-2 flex justify-between">
+                                            <span className="font-bold text-charcoal text-sm">Total</span>
+                                            <span className="font-bold text-charcoal">€{totalPrice}</span>
+                                        </div>
+                                    )}
+                                    <p className="text-charcoal/50 text-sm mt-3 mb-4">
+                                        {totalDuration} minutes · €{totalPrice}
                                     </p>
                                     <div className="flex items-center justify-center gap-3 py-3 bg-blush/50 rounded-xl text-sm font-semibold text-charcoal">
                                         <span>{selectedDate && format(selectedDate, "EEE, MMM d, yyyy")}</span>
@@ -857,7 +987,7 @@ function BookingContent() {
                                     <button
                                         onClick={() => {
                                             setStep("service");
-                                            setSelectedServiceId(null);
+                                            setSelectedServiceIds([]);
                                             setSelectedDate(null);
                                             setSelectedTime(null);
                                             setName("");

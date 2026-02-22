@@ -32,8 +32,8 @@ type WeeklyTimetableProps = {
     onBookingClick?: (bookingId: number) => void;
 };
 
-// 30-min slots from 09:00 to 17:30 (last slot starts at 17:00)
-const SLOT_COUNT = 17; // 9:00,9:30,10:00,...,17:00
+// 30-min slots from 09:00 to 20:00 (Mon–Thu close at 20:00)
+const SLOT_COUNT = 22; // 9:00,9:30,10:00,...,19:30
 const SLOT_HEIGHT = 48; // px per 30-min slot
 const HOUR_HEIGHT = SLOT_HEIGHT * 2; // 96px per hour
 const TOP_PADDING = 12; // px above the first row so 9AM isn't clipped
@@ -99,13 +99,13 @@ export default function WeeklyTimetable({
     // Current-time indicator position
     const now = new Date();
     const nowFloat = now.getHours() + now.getMinutes() / 60;
-    const showNowLine = nowFloat >= 9 && nowFloat <= 17.5;
+    const showNowLine = nowFloat >= 9 && nowFloat <= 20;
     const nowTop = TOP_PADDING + (nowFloat - 9) * HOUR_HEIGHT;
 
     return (
         <div
             className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col select-none overflow-hidden"
-            style={{ height: "min(800px, 85vh)" }}
+            style={{ height: "min(920px, 90vh)" }}
             onMouseUp={handleMouseUp}
             onMouseLeave={() => {
                 if (isDragging) {
@@ -240,8 +240,26 @@ export default function WeeklyTimetable({
                                         const start = timeToFloat(booking.time);
                                         const top = TOP_PADDING + (start - 9) * HOUR_HEIGHT;
                                         const duration = booking.serviceDuration || 30;
-                                        const height = (duration / 60) * HOUR_HEIGHT;
-                                        const isShort = duration <= 30;
+                                        const MIN_DURATION_PX = 10; // floor for services < 10min
+                                        // 10min = 16px, 15min = 24px, 20min = 32px, 30min = 46px
+                                        const naturalHeight = (duration / 60) * HOUR_HEIGHT - 2;
+                                        const displayHeight = duration < 10
+                                            ? MIN_DURATION_PX
+                                            : Math.max(naturalHeight, MIN_DURATION_PX);
+                                        const isTiny = displayHeight < 22;   // < ~14min — only name
+                                        const isShort = displayHeight < 44;  // < ~28min — single row
+
+                                        const statusColors =
+                                            booking.status === "confirmed"
+                                                ? "bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200"
+                                                : "bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200";
+
+                                        const textPrimary =
+                                            booking.status === "confirmed" ? "text-pink-900" : "text-amber-900";
+                                        const textSecondary =
+                                            booking.status === "confirmed" ? "text-pink-500" : "text-amber-500";
+                                        const textTertiary =
+                                            booking.status === "confirmed" ? "text-pink-400" : "text-amber-400";
 
                                         return (
                                             <motion.div
@@ -255,37 +273,45 @@ export default function WeeklyTimetable({
                                                 }}
                                                 className={`absolute left-[3px] right-[3px] rounded-lg border shadow-sm cursor-pointer z-10
                                                     hover:shadow-lg hover:z-20 hover:brightness-[0.97] active:scale-[0.99] transition-all
-                                                    ${
-                                                        booking.status === "confirmed"
-                                                            ? "bg-gradient-to-br from-pink-50 to-pink-100 border-pink-200"
-                                                            : "bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200"
-                                                    }`}
+                                                    ${statusColors}`}
                                                 style={{
                                                     top: `${top + 1}px`,
-                                                    height: `${Math.max(height - 2, SLOT_HEIGHT - 4)}px`,
+                                                    height: `${displayHeight}px`,
                                                 }}
+                                                title={`${booking.customerName} — ${booking.serviceName} (${duration}min, ${booking.time})`}
                                             >
-                                                <div className={`h-full px-2 flex ${isShort ? "flex-row items-center gap-2" : "flex-col justify-between py-1.5"} overflow-hidden`}>
-                                                    {isShort ? (
-                                                        /* Compact single-row for 30min bookings */
+                                                <div className={`h-full px-2 flex overflow-hidden ${
+                                                    isTiny
+                                                        ? "flex-row items-center"
+                                                        : isShort
+                                                            ? "flex-row items-center gap-2"
+                                                            : "flex-col justify-between py-1.5"
+                                                }`}>
+                                                    {isTiny ? (
+                                                        /* Ultra-compact: just the name */
+                                                        <span className={`font-bold ${textPrimary} text-[10px] truncate leading-none`}>
+                                                            {booking.customerName}
+                                                        </span>
+                                                    ) : isShort ? (
+                                                        /* Compact single-row for ≤30min bookings */
                                                         <>
-                                                            <span className="font-bold text-pink-900 text-[11px] truncate flex-1">{booking.customerName}</span>
-                                                            <span className="text-pink-500 text-[10px] flex-shrink-0">{booking.time}</span>
+                                                            <span className={`font-bold ${textPrimary} text-[11px] truncate flex-1`}>{booking.customerName}</span>
+                                                            <span className={`${textSecondary} text-[10px] flex-shrink-0`}>{booking.time}</span>
                                                         </>
                                                     ) : (
                                                         /* Multi-line for longer bookings */
                                                         <>
                                                             <div className="min-w-0">
-                                                                <div className="font-bold text-pink-900 text-[11px] leading-tight truncate">
+                                                                <div className={`font-bold ${textPrimary} text-[11px] leading-tight truncate`}>
                                                                     {booking.customerName}
                                                                 </div>
-                                                                <div className="text-pink-600 text-[10px] leading-tight truncate mt-0.5">
+                                                                <div className={`${textSecondary} text-[10px] leading-tight truncate mt-0.5`}>
                                                                     {booking.serviceName}
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center justify-between">
-                                                                <span className="text-pink-400 text-[10px]">{booking.time}</span>
-                                                                <span className="text-pink-400 text-[10px]">{duration}m</span>
+                                                                <span className={`${textTertiary} text-[10px]`}>{booking.time}</span>
+                                                                <span className={`${textTertiary} text-[10px]`}>{duration}m</span>
                                                             </div>
                                                         </>
                                                     )}

@@ -103,7 +103,7 @@ export default function Home() {
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     <span className="absolute top-3 right-3 px-3 py-1 bg-gold text-charcoal text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg">
-                      Popular
+                      Popularno
                     </span>
                   </div>
 
@@ -123,7 +123,7 @@ export default function Home() {
 
                     <div className="flex items-end justify-between pt-4 border-t border-dusty-rose/30">
                       <div>
-                        <span className="text-[10px] text-charcoal/40 uppercase tracking-widest font-semibold block">Starting at</span>
+                        <span className="text-[10px] text-charcoal/40 uppercase tracking-widest font-semibold block">Za</span>
                         <span className="text-2xl font-playfair font-bold text-charcoal">€{service.price}</span>
                       </div>
                       <Link

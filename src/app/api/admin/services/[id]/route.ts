@@ -46,6 +46,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         await broadcast({ event: "service_deleted", data: { id } });
         return NextResponse.json({ message: "Service deleted successfully" });
     } catch (error) {
+        console.error("[DELETE /api/admin/services/:id]", error);
         return NextResponse.json({ error: "Failed to delete service" }, { status: 500 });
     }
 }
