@@ -74,3 +74,17 @@ export type NewBlockedTime = typeof blockedTimes.$inferInsert;
 
 export type NoShow = typeof noShows.$inferSelect;
 export type NewNoShow = typeof noShows.$inferInsert;
+
+export const customerNotes = sqliteTable("customer_notes", {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    customerEmail: text("customer_email").notNull(),
+    note: text("note").notNull(),
+    author: text("author", { enum: ["customer", "admin"] }).default("admin").notNull(),
+    bookingId: integer("booking_id").references(() => bookings.id, { onDelete: "set null" }),
+    createdAt: text("created_at")
+        .default(sql`CURRENT_TIMESTAMP`)
+        .notNull(),
+});
+
+export type CustomerNote = typeof customerNotes.$inferSelect;
+export type NewCustomerNote = typeof customerNotes.$inferInsert;
