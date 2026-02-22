@@ -2,7 +2,7 @@
 
 A full-stack appointment booking and business management platform built for **Lepotilnica**, a beauty salon. Customers can browse services, book appointments online, and manage cancellations — while the salon owner gets a real-time admin dashboard with analytics, customer logs, and complete booking control.
 Links available:
-- https://lepotilnica.vercel.app/
+- [Lepotilnica by Karin](https://lepotilnica.vercel.app/)
 ---
 
 ## Features
