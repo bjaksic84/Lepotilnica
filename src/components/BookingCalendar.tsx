@@ -14,6 +14,7 @@ import {
     getDay,
 } from "date-fns";
 import { motion } from "framer-motion";
+import { getScheduleForDate, timeToMinutes } from "@/lib/schedule";
 
 export default function BookingCalendar({
     onSelect,
@@ -32,7 +33,18 @@ export default function BookingCalendar({
     const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
     const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
 
-    const isPast = (date: Date) => isBefore(date, startOfDay(new Date()));
+    const isPast = (date: Date) => {
+        if (isBefore(date, startOfDay(new Date()))) return true;
+        // If it's today, check whether all working hours have already passed
+        if (isSameDay(date, new Date())) {
+            const schedule = getScheduleForDate(date);
+            if (!schedule) return true;
+            const now = new Date();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            if (currentMinutes >= timeToMinutes(schedule.close)) return true;
+        }
+        return false;
+    };
     const isWeekend = (date: Date) => {
         const d = getDay(date);
         return d === 0; // Sunday = 0 (Saturday is now open)

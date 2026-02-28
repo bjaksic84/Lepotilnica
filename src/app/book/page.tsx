@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import BookingCalendar from "@/components/BookingCalendar";
 import { multiBookingSchema } from "@/lib/validators";
@@ -51,22 +51,25 @@ function BookingContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
-    // Pre-selected service(s) from URL (?service=X or ?services=X,Y,Z)
-    const preServiceIds: number[] = useMemo(() => {
+    // Pre-selected service(s) from URL
+    // ?services=X,Y,Z  → skip to date step (from services page)
+    // ?service=X        → stay on service step with it pre-checked (from landing page)
+    const { preServiceIds, skipServiceStep } = useMemo(() => {
         const multi = searchParams.get("services");
         if (multi) {
-            return multi.split(",").map(Number).filter((n) => !isNaN(n) && n > 0);
+            const ids = multi.split(",").map(Number).filter((n) => !isNaN(n) && n > 0);
+            return { preServiceIds: ids, skipServiceStep: ids.length > 0 };
         }
         const single = searchParams.get("service");
         if (single && !isNaN(Number(single))) {
-            return [Number(single)];
+            return { preServiceIds: [Number(single)], skipServiceStep: false };
         }
-        return [];
+        return { preServiceIds: [] as number[], skipServiceStep: false };
     }, [searchParams]);
     const hasPreSelected = preServiceIds.length > 0;
 
     /* ── State ──────────────── */
-    const [step, setStep] = useState<Step>(hasPreSelected ? "date" : "service");
+    const [step, setStep] = useState<Step>(skipServiceStep ? "date" : "service");
     const [direction, setDirection] = useState(0);
 
     // Booking selections
@@ -128,17 +131,17 @@ function BookingContent() {
         [selectedTime, selectedServices]
     );
 
-    // Dynamic step sequence (skip service step if pre-selected & valid)
+    // Dynamic step sequence (skip service step only if came from services page with valid selections)
     const stepSequence: Step[] = useMemo(() => {
         if (
-            hasPreSelected &&
+            skipServiceStep &&
             selectedServiceIds.length > 0 &&
             selectedServiceIds.every((id) => allServices.some((s) => s.id === id))
         ) {
             return ["date", "time", "details"];
         }
         return ["service", "date", "time", "details"];
-    }, [hasPreSelected, selectedServiceIds, allServices]);
+    }, [skipServiceStep, selectedServiceIds, allServices]);
 
     /* ── Effects ────────────── */
 
@@ -164,7 +167,7 @@ function BookingContent() {
                 setSelectedServiceIds(validIds);
             }
         }
-    }, [loadingServices, allServices, hasPreSelected, preServiceIds]);
+    }, [loadingServices, allServices, hasPreSelected, selectedServiceIds]);
 
     // Fetch availability when date or services change
     useEffect(() => {
@@ -660,16 +663,20 @@ function BookingContent() {
                                         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                                             {daySlots.map((time) => {
                                                 const available = availableSlots.includes(time);
+                                                // Disable past times for today
+                                                const isToday = selectedDate && isSameDay(selectedDate, new Date());
+                                                const isPastSlot = isToday && timeToMinutes(time) <= (new Date().getHours() * 60 + new Date().getMinutes());
+                                                const isDisabled = !available || !!isPastSlot;
                                                 return (
                                                     <motion.button
                                                         key={time}
-                                                        disabled={!available}
-                                                        onClick={() => available && handleTimeSelect(time)}
-                                                        whileHover={available ? { scale: 1.04 } : {}}
-                                                        whileTap={available ? { scale: 0.96 } : {}}
+                                                        disabled={isDisabled}
+                                                        onClick={() => !isDisabled && handleTimeSelect(time)}
+                                                        whileHover={!isDisabled ? { scale: 1.04 } : {}}
+                                                        whileTap={!isDisabled ? { scale: 0.96 } : {}}
                                                         className={`
                                                             py-3 rounded-xl text-sm font-medium transition-all
-                                                            ${available
+                                                            ${!isDisabled
                                                                 ? "bg-porcelain border border-dusty-rose/30 text-charcoal hover:border-gold hover:shadow-md cursor-pointer"
                                                                 : "bg-blush-light border border-dusty-rose/15 text-charcoal/20 cursor-not-allowed line-through decoration-dusty-rose/20"
                                                             }

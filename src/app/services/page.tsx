@@ -8,11 +8,14 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
     title: "Services",
-    description: "Browse our complete menu of premium beauty treatments — facials, lash extensions, manicures, massages, and more at Lepotilnica by Karin in Ljubljana.",
+    description: "Odkrijte celoten meni premium lepotnih storitev — nega obraza, podaljševanje trepalnic, manikura, masaže in več v Lepotilnici by Karin v Ljubljani. Browse our complete menu of beauty treatments.",
     openGraph: {
-        title: "Services — Lepotilnica by Karin",
-        description: "Browse our complete menu of premium beauty treatments in Ljubljana.",
-        url: "https://lepotilnica.si/services",
+        title: "Storitve — Lepotilnica by Karin",
+        description: "Celoten meni premium lepotnih storitev v Ljubljani. Browse our complete menu of beauty treatments.",
+        url: "/services",
+    },
+    alternates: {
+        canonical: "/services",
     },
 };
 

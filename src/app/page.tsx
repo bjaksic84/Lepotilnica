@@ -25,6 +25,11 @@ function getServiceSlug(name: string) {
   return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
 
+// Per-service image crop adjustments
+const imagePositions: Record<string, string> = {
+  "pedikura-s-permanentnim-lakiranjem": "center 80%",
+};
+
 export default function Home() {
   const [popularServices, setPopularServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,11 +92,12 @@ export default function Home() {
                   {/* Service image placeholder */}
                   <div className={`relative h-56 bg-gradient-to-br ${cardGradients[i % cardGradients.length]} overflow-hidden`}>
                     <Image
-                      src={`/services/${getServiceSlug(service.name)}.jpg`}
+                      src={`/services/${getServiceSlug(service.name)}.jpeg`}
                       alt={`${service.name} — beauty treatment at Lepotilnica by Karin`}
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
                       sizes="(max-width: 768px) 100vw, 33vw"
+                      style={{ objectPosition: imagePositions[getServiceSlug(service.name)] || "center" }}
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}
@@ -166,15 +172,15 @@ export default function Home() {
 
         <div className="container mx-auto px-4 flex flex-col md:flex-row items-center gap-20 relative z-10">
           <motion.div
-            initial={{ opacity: 0, x: -50, rotate: -2 }}
-            whileInView={{ opacity: 1, x: 0, rotate: 0 }}
+            initial={{ opacity: 0, x: -50 }}
+            whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 1, ease: "easeOut" }}
-            className="md:w-1/2 relative"
+            className="md:w-1/2"
           >
-            <div className="relative z-10 aspect-[4/5] bg-charcoal/80 rounded-3xl overflow-hidden shadow-2xl border border-porcelain/10">
+            <div className="relative aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl">
               <Image
-                src="/about-karin.jpg"
+                src="/about-karin.jpeg"
                 alt="Karin — founder and beauty expert at Lepotilnica"
                 fill
                 className="object-cover"
@@ -183,16 +189,7 @@ export default function Home() {
                   (e.target as HTMLImageElement).style.display = "none";
                 }}
               />
-              <div className="absolute inset-0 bg-gradient-to-tr from-charcoal/80 to-charcoal/40 flex items-center justify-center -z-10">
-                <span className="text-8xl font-playfair text-porcelain/5 italic select-none">K</span>
-              </div>
-            </div>
-
-            {/* Decorative Frames */}
-            <div className="absolute inset-0 border border-gold/20 rounded-3xl translate-x-4 translate-y-4 -z-10" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-charcoal/80 backdrop-blur-md rounded-2xl border border-porcelain/10 p-6 flex flex-col justify-center items-center text-center shadow-xl">
-              <span className="text-4xl font-bold text-gold font-playfair">10+</span>
-              <span className="text-xs text-porcelain/40 uppercase tracking-widest mt-2">Years of<br />Experience</span>
+              <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 via-transparent to-transparent" />
             </div>
           </motion.div>
 
