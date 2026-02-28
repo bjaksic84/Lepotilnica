@@ -6,22 +6,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://lepotilnica.si";
 
     // Static pages
+    // Use deployment / build date instead of "right now" for stable lastModified
+    const buildDate = new Date("2026-02-28");
+
     const staticPages: MetadataRoute.Sitemap = [
         {
             url: baseUrl,
-            lastModified: new Date(),
+            lastModified: buildDate,
             changeFrequency: "weekly",
             priority: 1.0,
         },
         {
             url: `${baseUrl}/services`,
-            lastModified: new Date(),
+            lastModified: buildDate,
             changeFrequency: "weekly",
             priority: 0.9,
         },
         {
             url: `${baseUrl}/book`,
-            lastModified: new Date(),
+            lastModified: buildDate,
             changeFrequency: "monthly",
             priority: 0.8,
         },

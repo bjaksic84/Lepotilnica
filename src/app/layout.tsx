@@ -53,7 +53,7 @@ export const metadata: Metadata = {
       "Experience premium beauty treatments in a sanctuary of elegance. Expert facials, lash extensions, brow styling, and more.",
     images: [
       {
-        url: "/og-image.svg",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
         alt: "Lepotilnica by Karin — Premium Beauty Salon",
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
     title: "Lepotilnica by Karin | Premium Beauty Salon",
     description:
       "Experience premium beauty treatments in a sanctuary of elegance. Book online today.",
-    images: ["/og-image.svg"],
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
@@ -107,7 +107,7 @@ function JsonLd() {
     url: baseUrl,
     logo: `${baseUrl}/logo.png`,
     image: [
-      `${baseUrl}/og-image.svg`,
+      `${baseUrl}/og-image.png`,
       `${baseUrl}/about-karin.jpeg`,
     ],
     telephone: "+386 1 234 5678",

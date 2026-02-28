@@ -78,9 +78,9 @@ export default function Hero() {
                         transition={{ duration: 0.8, ease: "easeOut", delay: 0.3 }}
                         className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-playfair font-bold text-charcoal mb-6 md:mb-8 leading-[1.1] tracking-tight"
                     >
-                        Discover Your <br />
+                        Lepotilnica by Karin <br />
                         <span className="text-gold-gradient">
-                            True Radiance
+                            Beauty Salon Ljubljana
                         </span>
                     </motion.h1>
 

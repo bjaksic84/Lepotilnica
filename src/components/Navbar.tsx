@@ -25,6 +25,7 @@ export default function Navbar() {
     return (
         <>
             <motion.nav
+                aria-label="Main navigation"
                 className={`fixed top-0 left-0 w-full z-50 transition-all duration-500 ${
                     scrolled
                         ? "bg-porcelain/90 backdrop-blur-xl shadow-[0_1px_0_0_rgba(232,213,213,0.5)] py-3"
