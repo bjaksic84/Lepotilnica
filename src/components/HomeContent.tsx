@@ -1,8 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { useRef } from "react";
 
 type Service = {
     id: number;
@@ -29,15 +30,36 @@ const imagePositions: Record<string, string> = {
 };
 
 export default function HomeContent({ popularServices }: { popularServices: Service[] }) {
+    const servicesRef = useRef<HTMLElement>(null);
+    const aboutRef = useRef<HTMLElement>(null);
+
+    const { scrollYProgress: servicesProgress } = useScroll({
+        target: servicesRef,
+        offset: ["start end", "end start"],
+    });
+    const yServices1 = useTransform(servicesProgress, [0, 1], [150, -150]);
+    const yServices2 = useTransform(servicesProgress, [0, 1], [-150, 150]);
+
+    const { scrollYProgress: aboutProgress } = useScroll({
+        target: aboutRef,
+        offset: ["start end", "end start"],
+    });
+    const yAbout1 = useTransform(aboutProgress, [0, 1], [100, -200]);
+    const yAbout2 = useTransform(aboutProgress, [0, 1], [-200, 100]);
+
     return (
         <>
             {/* Services Preview Section */}
-            <section id="services" className="py-32 relative overflow-hidden">
+            <section id="services" ref={servicesRef} className="py-32 relative overflow-hidden">
                 {/* Subtle aurora background */}
-                <div className="absolute top-0 right-0 w-[800px] h-[800px] rounded-full opacity-30 -translate-y-1/2 translate-x-1/2 -z-10"
-                    style={{ background: "radial-gradient(circle, rgba(232,213,213,0.4) 0%, transparent 70%)" }} />
-                <div className="absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full opacity-20 translate-y-1/2 -translate-x-1/4 -z-10"
-                    style={{ background: "radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)" }} />
+                <motion.div style={{ y: yServices1 }} className="absolute z-0 inset-0 pointer-events-none">
+                    <div className="absolute top-0 right-0 w-[800px] h-[800px] rounded-full opacity-30 -translate-y-1/2 translate-x-1/2 -z-10"
+                        style={{ background: "radial-gradient(circle, rgba(232,213,213,0.4) 0%, transparent 70%)" }} />
+                </motion.div>
+                <motion.div style={{ y: yServices2 }} className="absolute z-0 inset-0 pointer-events-none">
+                    <div className="absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full opacity-20 translate-y-1/2 -translate-x-1/4 -z-10"
+                        style={{ background: "radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)" }} />
+                </motion.div>
 
                 <div className="container mx-auto px-4 relative z-10">
                     <motion.div
@@ -64,8 +86,9 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                     whileInView={{ opacity: 1, y: 0 }}
                                     viewport={{ once: true }}
                                     transition={{ duration: 0.7, delay: i * 0.2, ease: "easeOut" }}
-                                    whileHover={{ y: -8 }}
-                                    className="bg-porcelain rounded-2xl overflow-hidden border border-dusty-rose/30 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col"
+                                    whileHover={{ y: -10, boxShadow: "0 20px 50px rgba(232,213,213,0.7), 0 8px 20px rgba(212,175,55,0.15)" }}
+                                    style={{ boxShadow: "0 8px 30px rgba(232,213,213,0.55), 0 2px 8px rgba(0,0,0,0.06)" }}
+                                    className="bg-porcelain rounded-2xl overflow-hidden border border-dusty-rose/40 transition-all duration-300 group flex flex-col"
                                 >
                                     {/* Service image */}
                                     <div className={`relative h-56 bg-gradient-to-br ${cardGradients[i % cardGradients.length]} overflow-hidden`}>
@@ -140,23 +163,37 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
             </section>
 
             {/* About Section */}
-            <section id="about" className="py-32 bg-charcoal text-porcelain relative overflow-hidden">
+            <section id="about" ref={aboutRef} className="py-32 bg-charcoal text-porcelain relative overflow-hidden">
                 {/* Decorative elements */}
                 <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg width=\"20\" height=\"20\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cpath d=\"M0 0h20v20H0z\" fill=\"none\" stroke=\"%23F9F5F2\" stroke-opacity=\"0.3\"/%3E%3C/svg%3E')" }} />
-                <div className="absolute top-0 left-0 w-[500px] h-[500px] rounded-full filter blur-[120px] opacity-20"
-                    style={{ background: "radial-gradient(circle, rgba(232,213,213,0.3) 0%, transparent 70%)" }} />
-                <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full filter blur-[120px] opacity-15"
-                    style={{ background: "radial-gradient(circle, rgba(212,175,55,0.15) 0%, transparent 70%)" }} />
+                <motion.div style={{ y: yAbout1 }} className="absolute z-0 inset-0 pointer-events-none">
+                    <div className="absolute top-0 left-0 w-[500px] h-[500px] rounded-full filter blur-[120px] opacity-20"
+                        style={{ background: "radial-gradient(circle, rgba(232,213,213,0.3) 0%, transparent 70%)" }} />
+                </motion.div>
+                <motion.div style={{ y: yAbout2 }} className="absolute z-0 inset-0 pointer-events-none">
+                    <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full filter blur-[120px] opacity-15"
+                        style={{ background: "radial-gradient(circle, rgba(212,175,55,0.15) 0%, transparent 70%)" }} />
+                </motion.div>
 
                 <div className="container mx-auto px-4 flex flex-col md:flex-row items-center gap-20 relative z-10">
-                    <motion.div
-                        initial={{ opacity: 0, x: -50 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 1, ease: "easeOut" }}
-                        className="md:w-1/2"
-                    >
-                        <div className="relative aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl">
+                    <div className="w-full max-w-md mx-auto md:max-w-none md:w-1/2 relative group">
+                        {/* Offset Magazine Border */}
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            whileInView={{ opacity: 1 }}
+                            viewport={{ once: true, margin: "-100px" }}
+                            transition={{ duration: 1, delay: 0.3, ease: "easeOut" }}
+                            className="absolute -inset-3 md:inset-0 md:translate-x-6 md:translate-y-6 rounded-3xl border border-gold/30 -z-10"
+                        />
+                        
+                        {/* Image Mask Reveal */}
+                        <motion.div
+                            initial={{ clipPath: "inset(100% 0 0 0 rounded 1.5rem)" }}
+                            whileInView={{ clipPath: "inset(0 0 0 0 rounded 1.5rem)" }}
+                            viewport={{ once: true, margin: "-100px" }}
+                            transition={{ duration: 1.2, ease: [0.77, 0, 0.175, 1] }}
+                            className="relative aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl"
+                        >
                             <Image
                                 src="/about-karin.jpeg"
                                 alt="Karin — founder and beauty expert at Lepotilnica"
@@ -168,22 +205,38 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                 }}
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 via-transparent to-transparent" />
-                        </div>
-                    </motion.div>
+                        </motion.div>
+                    </div>
 
                     <motion.div
-                        initial={{ opacity: 0, x: 50 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.8 }}
-                        className="md:w-1/2"
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, margin: "-100px" }}
+                        variants={{
+                            hidden: {},
+                            visible: {
+                                transition: { staggerChildren: 0.15 }
+                            }
+                        }}
+                        className="w-full md:w-1/2 md:pl-8 text-center md:text-left"
                     >
-                        <span className="text-gold font-semibold tracking-[0.15em] uppercase mb-4 text-xs block">The Artist</span>
-                        <h2 className="text-5xl md:text-6xl font-playfair font-bold mb-8 leading-tight">
-                            Dedicated to the <br />
+                        <motion.span 
+                            variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } }}
+                            className="text-gold font-semibold tracking-[0.15em] uppercase mb-4 text-xs block"
+                        >
+                            The Artist
+                        </motion.span>
+                        <motion.h2 
+                            variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } }}
+                            className="text-5xl md:text-6xl font-playfair font-bold mb-8 leading-tight"
+                        >
+                            Dedicated to the <br className="hidden md:block" />
                             <span className="text-gold-gradient">Art of Beauty</span>
-                        </h2>
-                        <div className="space-y-6 text-lg text-porcelain/50 font-light leading-relaxed">
+                        </motion.h2>
+                        <motion.div 
+                            variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } }}
+                            className="space-y-6 text-lg text-porcelain/50 font-light leading-relaxed text-left"
+                        >
                             <p>
                                 With over a decade of experience in the beauty industry, Karin has dedicated her life to mastering the art of esthetics.
                                 Lepotilnica is her vision brought to life — a sanctuary where advanced techniques meet timeless relaxation.
@@ -191,16 +244,26 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                             <p>
                                 &ldquo;My mission is to reveal the confidence that lies within every client. True beauty is about how you feel, and I am here to help you shine.&rdquo;
                             </p>
-                        </div>
+                        </motion.div>
 
-                        <div className="mt-12 flex items-center gap-6">
-                            <Link href="/book" className="px-10 py-4 bg-gold text-charcoal rounded-full font-bold hover:bg-gold-light transition-all transform hover:scale-[1.03] shadow-[0_0_20px_rgba(212,175,55,0.3)]">
-                                Book Appointment
-                            </Link>
+                        <motion.div 
+                            variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } }}
+                            className="mt-12 flex flex-col sm:flex-row items-center gap-6 justify-center md:justify-start"
+                        >
+                            <div className="relative group">
+                                <motion.div 
+                                    animate={{ opacity: [0.3, 0.6, 0.3], scale: [1, 1.05, 1] }}
+                                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                    className="absolute inset-0 bg-gold/40 rounded-full blur-xl -z-10"
+                                />
+                                <Link href="/book" className="relative block px-10 py-4 bg-gold text-charcoal rounded-full font-bold hover:bg-gold-light transition-all transform hover:scale-[1.03]">
+                                    Book Appointment
+                                </Link>
+                            </div>
                             <div className="font-playfair italic text-porcelain/40">
                                 — Karin
                             </div>
-                        </div>
+                        </motion.div>
                     </motion.div>
                 </div>
             </section>
