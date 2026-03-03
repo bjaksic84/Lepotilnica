@@ -88,7 +88,7 @@ export default function Hero() {
                         className="text-base sm:text-lg md:text-xl text-charcoal/60 mb-10 md:mb-12 font-light max-w-2xl mx-auto leading-relaxed"
                     >
                         Profesionalna nega, prilagojena vašim željam in sodobnim trendom. <br />
-                        Poskrbimo za vaš brezhiben videz in trenutek popolne sprostitve v objemu elegance.
+                        Poskrbimo za vaš brezhiben videz in popolno sprostitvev.
                     </motion.p>
 
                     <motion.div
