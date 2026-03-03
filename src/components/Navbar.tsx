@@ -7,9 +7,9 @@ import { usePathname } from "next/navigation";
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from "framer-motion";
 
 const NAV_LINKS = [
-    { href: "/", label: "Home" },
-    { href: "/services", label: "Services" },
-    { href: "/#about", label: "About" },
+    { href: "/", label: "Domov" },
+    { href: "/services", label: "Storitve" },
+    { href: "/#about", label: "O nas" },
 ];
 
 export default function Navbar() {
@@ -86,7 +86,7 @@ export default function Navbar() {
                                     : "bg-porcelain text-charcoal hover:bg-blush"
                             }`}
                         >
-                            Book Now
+                            Rezerviraj
                         </Link>
 
                         {/* Mobile menu button */}
@@ -139,7 +139,7 @@ export default function Navbar() {
                                 className="btn-primary text-center mt-2"
                                 onClick={() => setMobileOpen(false)}
                             >
-                                Book Now
+                                Rezerviraj
                             </Link>
                         </div>
                     </motion.div>

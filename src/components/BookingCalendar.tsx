@@ -13,6 +13,7 @@ import {
     startOfDay,
     getDay,
 } from "date-fns";
+import { sl } from "date-fns/locale";
 import { motion } from "framer-motion";
 import { getScheduleForDate, timeToMinutes } from "@/lib/schedule";
 
@@ -69,8 +70,8 @@ export default function BookingCalendar({
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
                     </svg>
                 </button>
-                <span className="font-playfair text-xl font-bold text-charcoal">
-                    {format(currentMonth, "MMMM yyyy")}
+                <span className="font-playfair text-xl font-bold text-charcoal capitalize">
+                    {format(currentMonth, "MMMM yyyy", { locale: sl })}
                 </span>
                 <button
                     onClick={nextMonth}
@@ -84,8 +85,8 @@ export default function BookingCalendar({
 
             {/* Day headers — Monday start */}
             <div className="grid grid-cols-7 gap-1 mb-2 text-center text-[11px] font-bold text-charcoal/40 uppercase tracking-widest">
-                {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
-                    <div key={d} className={d === "Su" ? "text-charcoal/20" : ""}>
+                {["Po", "To", "Sr", "Če", "Pe", "So", "Ne"].map((d) => (
+                    <div key={d} className={d === "Ne" ? "text-charcoal/20" : ""}>
                         {d}
                     </div>
                 ))}
@@ -135,15 +136,15 @@ export default function BookingCalendar({
             <div className="flex items-center justify-center gap-6 mt-5 pt-4 border-t border-dusty-rose/20">
                 <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full ring-1 ring-gold" />
-                    <span className="text-[10px] text-charcoal/40">Today</span>
+                    <span className="text-[10px] text-charcoal/40">Danes</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-charcoal" />
-                    <span className="text-[10px] text-charcoal/40">Selected</span>
+                    <span className="text-[10px] text-charcoal/40">Izbrano</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-dusty-rose/30" />
-                    <span className="text-[10px] text-charcoal/40">Closed</span>
+                    <span className="text-[10px] text-charcoal/40">Zaprto</span>
                 </div>
             </div>
         </div>

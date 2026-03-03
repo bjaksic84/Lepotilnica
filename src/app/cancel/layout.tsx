@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-    title: "Cancel Booking",
+    title: "Preklic rezervacije",
     robots: {
         index: false,
         follow: false,

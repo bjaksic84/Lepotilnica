@@ -69,11 +69,11 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                         transition={{ duration: 0.8, ease: "easeOut" }}
                         className="text-center mb-20"
                     >
-                        <span className="text-gold font-semibold tracking-[0.15em] uppercase mb-4 text-xs block">Premium Care</span>
-                        <h2 className="text-5xl md:text-6xl font-playfair font-bold text-charcoal mb-6">Our Services</h2>
+                        <span className="text-gold font-semibold tracking-[0.15em] uppercase mb-4 text-xs block">Vrhunska nega</span>
+                        <h2 className="text-5xl md:text-6xl font-playfair font-bold text-charcoal mb-6">Naše storitve</h2>
                         <div className="w-24 h-px bg-gradient-to-r from-transparent via-gold to-transparent mx-auto" />
                         <p className="mt-8 text-charcoal/50 text-xl max-w-2xl mx-auto font-light leading-relaxed">
-                            Indulge in our curated selection of treatments designed to rejuvenate your body, mind, and spirit.
+                            Prepustite se naši skrbno izbrani ponudbi tretmajev, zasnovani za pomladitev vašega telesa, uma in duha.
                         </p>
                     </motion.div>
 
@@ -94,7 +94,7 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                     <div className={`relative h-56 bg-gradient-to-br ${cardGradients[i % cardGradients.length]} overflow-hidden`}>
                                         <Image
                                             src={`/services/${getServiceSlug(service.name)}.jpeg`}
-                                            alt={`${service.name} — beauty treatment at Lepotilnica by Karin`}
+                                            alt={`${service.name} — lepotni tretma v Lepotilnici`}
                                             fill
                                             className="object-cover group-hover:scale-105 transition-transform duration-500"
                                             sizes="(max-width: 768px) 100vw, 33vw"
@@ -120,7 +120,7 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                             {service.name}
                                         </h3>
                                         <p className="text-charcoal/50 leading-relaxed text-sm mb-6 line-clamp-2">
-                                            {service.description || "Discover the benefits of this premium treatment."}
+                                            {service.description || "Odkrijte prednosti tega vrhunskega tretmaja."}
                                         </p>
 
                                         <div className="flex items-center gap-2 text-xs text-charcoal/40 mb-6 mt-auto">
@@ -136,7 +136,7 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                             <Link
                                                 href={`/book?service=${service.id}`}
                                                 className="w-11 h-11 bg-charcoal rounded-full flex items-center justify-center text-porcelain group-hover:bg-gold transition-colors shadow-lg"
-                                                aria-label={`Book ${service.name}`}
+                                                aria-label={`Rezerviraj ${service.name}`}
                                             >
                                                 <svg className="w-4 h-4 -rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -149,14 +149,14 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                         </div>
                     ) : (
                         <div className="text-center py-20 text-charcoal/50">
-                            <p className="text-lg">No popular services available at the moment.</p>
-                            <p className="text-sm mt-2">Check back soon for our featured treatments!</p>
+                            <p className="text-lg">Trenutno ni na voljo priljubljenih storitev.</p>
+                            <p className="text-sm mt-2">Kmalu preverite naše izpostavljene tretmaje!</p>
                         </div>
                     )}
 
                     <div className="text-center mt-16">
                         <Link href="/services" className="btn-secondary px-12">
-                            View Full Menu
+                            Vse storitve
                         </Link>
                     </div>
                 </div>
@@ -224,25 +224,25 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                             variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } }}
                             className="text-gold font-semibold tracking-[0.15em] uppercase mb-4 text-xs block"
                         >
-                            The Artist
+                            O meni
                         </motion.span>
                         <motion.h2 
                             variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } }}
                             className="text-5xl md:text-6xl font-playfair font-bold mb-8 leading-tight"
                         >
-                            Dedicated to the <br className="hidden md:block" />
-                            <span className="text-gold-gradient">Art of Beauty</span>
+                            Posvečeno <br className="hidden md:block" />
+                            <span className="text-gold-gradient">umetnosti lepote</span>
                         </motion.h2>
                         <motion.div 
                             variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } }}
                             className="space-y-6 text-lg text-porcelain/50 font-light leading-relaxed text-left"
                         >
                             <p>
-                                With over a decade of experience in the beauty industry, Karin has dedicated her life to mastering the art of esthetics.
-                                Lepotilnica is her vision brought to life — a sanctuary where advanced techniques meet timeless relaxation.
+                                Ko je Karin pri 18 letih odprla vrata Lepotilnice, je imela jasno vizijo: ustvariti prostor, kjer se mladostna kreativnost sreča s profesionalno nego.
+                                Njena pot, ki se je začela takoj po srednji šoli, temelji na nenehnem učenju in želji, da vsaki stranki ponudi najsodobnejše pristope k lepoti.
                             </p>
                             <p>
-                                &ldquo;My mission is to reveal the confidence that lies within every client. True beauty is about how you feel, and I am here to help you shine.&rdquo;
+                                &ldquo;Moja motivacija prihaja iz ljubezni do dela, ki ga opravljam od prvega dne svoje kariere. Vsaka stranka je zame priložnost, da dokažem, da prava kakovost izhaja iz predanosti in pozornosti do detajlov.&rdquo;
                             </p>
                         </motion.div>
 
@@ -257,7 +257,7 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                     className="absolute inset-0 bg-gold/40 rounded-full blur-xl -z-10"
                                 />
                                 <Link href="/book" className="relative block px-10 py-4 bg-gold text-charcoal rounded-full font-bold hover:bg-gold-light transition-all transform hover:scale-[1.03]">
-                                    Book Appointment
+                                    Rezerviraj termin
                                 </Link>
                             </div>
                             <div className="font-playfair italic text-porcelain/40">

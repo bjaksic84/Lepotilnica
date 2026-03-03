@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Lepotilnica by Karin",
         short_name: "Lepotilnica",
         description:
-            "Premium beauty salon in Ljubljana — facials, lash extensions, brow styling & more. Book online.",
+            "Prestižni kozmetični salon v Ljubljani — nega obraza, podaljševanje trepalnic, oblikovanje obrvi, manikura in več. Rezervirajte prek spleta.",
         start_url: "/",
         display: "standalone",
         background_color: "#F9F5F2",

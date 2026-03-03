@@ -122,7 +122,7 @@ export default function WeeklyTimetable({
                     <button
                         onClick={() => onDateChange(subWeeks(currentDate, 1))}
                         className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                        aria-label="Previous week"
+                        aria-label="Prejšnji teden"
                     >
                         <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -132,12 +132,12 @@ export default function WeeklyTimetable({
                         onClick={() => onDateChange(new Date())}
                         className="text-[9px] font-bold text-gray-400 hover:text-yellow-600 transition-colors uppercase tracking-wider"
                     >
-                        Today
+                        Danes
                     </button>
                     <button
                         onClick={() => onDateChange(addWeeks(currentDate, 1))}
                         className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                        aria-label="Next week"
+                        aria-label="Naslednji teden"
                     >
                         <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -339,7 +339,7 @@ export default function WeeklyTimetable({
                                                 }}
                                             >
                                                 <span className="text-[10px] text-gray-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity mr-1">
-                                                    Blocked
+                                                    Blokirano
                                                 </span>
                                                 <button
                                                     onClick={(e) => {

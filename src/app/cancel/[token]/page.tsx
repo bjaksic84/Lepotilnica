@@ -27,7 +27,7 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
                 const data = await res.json();
                 setResult(data);
             } catch {
-                setResult({ error: "Something went wrong. Please try again." });
+                setResult({ error: "Nekaj je šlo narobe. Prosimo, poskusite znova." });
             } finally {
                 setLoading(false);
             }
@@ -61,7 +61,7 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
                             <div className="flex flex-col items-center gap-4">
                                 <div className="w-10 h-10 border-2 border-dusty-rose/30 border-t-charcoal rounded-full animate-spin" />
                                 <p className="text-charcoal/50 text-sm">
-                                    Processing your cancellation...
+                                    Obdelava preklica ...
                                 </p>
                             </div>
                         ) : result?.success ? (
@@ -72,7 +72,7 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
                                     </svg>
                                 </div>
                                 <h2 className="font-playfair text-xl text-charcoal mb-2">
-                                    Appointment Cancelled
+                                    Termin preklican
                                 </h2>
                                 <p className="text-charcoal/50 text-sm leading-relaxed mb-6">
                                     {result.message}
@@ -87,7 +87,7 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
                                     href="/"
                                     className="inline-block px-8 py-3 bg-charcoal text-porcelain rounded-full text-sm font-medium hover:bg-charcoal/90 transition-all"
                                 >
-                                    Back to Home
+                                    Nazaj na domačo stran
                                 </a>
                             </>
                         ) : (
@@ -98,16 +98,16 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
                                     </svg>
                                 </div>
                                 <h2 className="font-playfair text-xl text-charcoal mb-2">
-                                    Unable to Cancel
+                                    Preklic ni uspel
                                 </h2>
                                 <p className="text-charcoal/50 text-sm leading-relaxed mb-6">
-                                    {result?.error || "Something went wrong."}
+                                    {result?.error || "Nekaj je šlo narobe."}
                                 </p>
                                 <a
                                     href="/"
                                     className="inline-block px-8 py-3 bg-charcoal text-porcelain rounded-full text-sm font-medium hover:bg-charcoal/90 transition-all"
                                 >
-                                    Back to Home
+                                    Nazaj na domačo stran
                                 </a>
                             </>
                         )}

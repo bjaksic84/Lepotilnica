@@ -17,10 +17,10 @@ export default function ServicesHero() {
                     transition={{ duration: 0.8 }}
                 >
                     <span className="text-gold font-semibold tracking-[0.15em] uppercase mb-4 text-xs block">
-                        Our Complete Menu
+                        Naš celoten meni
                     </span>
                     <h1 className="text-4xl md:text-6xl lg:text-7xl font-playfair font-bold text-charcoal mb-6">
-                        Premium Services
+                        Premium storitve
                     </h1>
                     <div className="w-24 h-px bg-gradient-to-r from-transparent via-gold to-transparent mx-auto" />
                 </motion.div>

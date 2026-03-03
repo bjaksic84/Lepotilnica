@@ -7,11 +7,11 @@ import type { Metadata } from "next";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-    title: "Services",
-    description: "Odkrijte celoten meni premium lepotnih storitev — nega obraza, podaljševanje trepalnic, manikura, masaže in več v Lepotilnici by Karin v Ljubljani. Browse our complete menu of beauty treatments.",
+    title: "Storitve",
+    description: "Odkrijte celoten meni premium lepotnih storitev — nega obraza, podaljševanje trepalnic, manikura, masaže in več v Lepotilnici by Karin v Ljubljani.",
     openGraph: {
         title: "Storitve — Lepotilnica by Karin",
-        description: "Celoten meni premium lepotnih storitev v Ljubljani. Browse our complete menu of beauty treatments.",
+        description: "Celoten meni premium lepotnih storitev v Ljubljani.",
         url: "/services",
     },
     alternates: {
@@ -51,16 +51,16 @@ function ServicesCTA() {
         <section className="container mx-auto px-4 text-center mt-32">
             <div className="glass-panel p-12 rounded-3xl max-w-3xl mx-auto transform transition-all hover:scale-[1.02] duration-500">
                 <h2 className="text-4xl font-playfair font-bold text-charcoal mb-4">
-                    Ready to Experience Luxury?
+                    Ste pripravljeni na razvajanje?
                 </h2>
                 <p className="text-charcoal/50 text-lg mb-8 font-light">
-                    Book your appointment today and let us take care of you.
+                    Rezervirajte svoj termin še danes in nam prepustite skrb za vas.
                 </p>
                 <Link
                     href="/book"
                     className="inline-block px-12 py-4 bg-gold text-charcoal rounded-full font-bold hover:bg-gold-light transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
                 >
-                    Book Appointment
+                    Rezerviraj termin
                 </Link>
             </div>
         </section>

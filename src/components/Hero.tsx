@@ -87,8 +87,8 @@ export default function Hero() {
                         transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
                         className="text-base sm:text-lg md:text-xl text-charcoal/60 mb-10 md:mb-12 font-light max-w-2xl mx-auto leading-relaxed"
                     >
-                        Experience premium beauty treatments in a sanctuary of elegance.
-                        Where advanced techniques meet timeless relaxation.
+                        Profesionalna nega, prilagojena vašim željam in sodobnim trendom. <br />
+                        Poskrbimo za vaš brezhiben videz in trenutek popolne sprostitve v objemu elegance.
                     </motion.p>
 
                     <motion.div
@@ -98,10 +98,10 @@ export default function Hero() {
                         className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center"
                     >
                         <Link href="/book" className="btn-primary">
-                            Book Appointment
+                            Rezerviraj termin
                         </Link>
                         <Link href="#services" className="btn-secondary">
-                            View Services
+                            Naše storitve
                         </Link>
                     </motion.div>
                 </motion.div>

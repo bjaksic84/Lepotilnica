@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { format, isSameDay } from "date-fns";
+import { sl } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
 import BookingCalendar from "@/components/BookingCalendar";
 import { multiBookingSchema } from "@/lib/validators";
@@ -31,10 +32,10 @@ type Step = "service" | "date" | "time" | "details" | "confirmation";
 /* ─── Constants ──────────────────────────────────────── */
 
 const STEP_CONFIG: { key: Step; label: string }[] = [
-    { key: "service", label: "Service" },
-    { key: "date", label: "Date" },
-    { key: "time", label: "Time" },
-    { key: "details", label: "Details" },
+    { key: "service", label: "Storitev" },
+    { key: "date", label: "Datum" },
+    { key: "time", label: "Ura" },
+    { key: "details", label: "Podatki" },
 ];
 
 /* ─── Animation Variants ─────────────────────────────── */
@@ -228,25 +229,25 @@ function BookingContent() {
         const next = { ...errors };
         switch (field) {
             case "name":
-                if (!value.trim()) next.name = "Name is required";
-                else if (value.trim().length < 2) next.name = "Name must be at least 2 characters";
+                if (!value.trim()) next.name = "Ime in priimek sta obvezna";
+                else if (value.trim().length < 2) next.name = "Ime mora vsebovati vsaj 2 znaka";
                 else if (!/^[a-zA-Z\u00C0-\u017E\s\-'.]+$/.test(value.trim()))
-                    next.name = "Name can only contain letters, spaces and hyphens";
+                    next.name = "Ime lahko vsebuje samo črke, presledke in vezaje";
                 else delete next.name;
                 break;
             case "email":
-                if (!value.trim()) next.email = "Email is required";
+                if (!value.trim()) next.email = "E-pošta je obvezna";
                 else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()))
-                    next.email = "Please enter a valid email address";
+                    next.email = "Vnesite veljaven e-poštni naslov";
                 else delete next.email;
                 break;
             case "phone": {
                 const digits = value.replace(/\D/g, "");
-                if (!value.trim()) next.phone = "Phone number is required";
-                else if (digits.length < 8) next.phone = "Phone number is too short";
-                else if (digits.length > 15) next.phone = "Phone number is too long";
+                if (!value.trim()) next.phone = "Telefonska številka je obvezna";
+                else if (digits.length < 8) next.phone = "Telefonska številka je prekratka";
+                else if (digits.length > 15) next.phone = "Telefonska številka je predolga";
                 else if (!/^\+?[\d\s\-()]+$/.test(value.trim()))
-                    next.phone = "Please enter a valid phone number";
+                    next.phone = "Vnesite veljavno telefonsko številko";
                 else delete next.phone;
                 break;
             }
@@ -316,10 +317,10 @@ function BookingContent() {
                 goTo("confirmation");
             } else {
                 const data = await res.json();
-                setErrors({ form: data.error || "Something went wrong. Please try again." });
+                setErrors({ form: data.error || "Prišlo je do napake. Prosimo, poskusite znova." });
             }
         } catch {
-            setErrors({ form: "Network error. Please check your connection and try again." });
+            setErrors({ form: "Napaka omrežja. Prosimo, preverite povezavo in poskusite znova." });
         } finally {
             setSubmitting(false);
         }
@@ -358,12 +359,12 @@ function BookingContent() {
                     className="text-center mb-10"
                 >
                     <h1 className="text-3xl md:text-4xl font-playfair font-bold text-charcoal mb-2">
-                        Book Your Appointment
+                        Rezervirajte svoj termin
                     </h1>
                     <p className="text-charcoal/50 text-sm">
                         {step === "confirmation"
-                            ? "Your booking is confirmed!"
-                            : "Follow the steps below to schedule your treatment"}
+                            ? "Vaša rezervacija je potrjena!"
+                            : "Sledite spodnjim korakom za rezervacijo termina"}
                     </p>
                 </motion.div>
 
@@ -431,13 +432,14 @@ function BookingContent() {
                                 <span className="w-1.5 h-1.5 rounded-full bg-gold" />
                                 {selectedServices.length === 1
                                     ? `${selectedServices[0].name} · €${selectedServices[0].price}`
-                                    : `${selectedServices.length} services · €${totalPrice}`}
+                                    : selectedServices.length === 2 || selectedServices.length === 3 || selectedServices.length === 4 ? `${selectedServices.length} storitve · €${totalPrice}` : `${selectedServices.length} storitev · €${totalPrice}`
+                                }
                             </span>
                         )}
                         {selectedDate && step !== "date" && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm">
                                 <span className="w-1.5 h-1.5 rounded-full bg-dusty-rose" />
-                                {format(selectedDate, "EEE, MMM d")}
+                                {format(selectedDate, "EEE, d. MMM", { locale: sl })}
                             </span>
                         )}
                         {selectedTime && step !== "time" && step !== "date" && (
@@ -464,10 +466,10 @@ function BookingContent() {
                                 transition={{ duration: 0.3, ease: "easeInOut" }}
                             >
                                 <h2 className="text-xl font-playfair font-bold text-charcoal text-center mb-2">
-                                    Choose Your Treatment{selectedServiceIds.length > 0 ? "s" : ""}
+                                    Izberite storitve
                                 </h2>
                                 <p className="text-center text-xs text-charcoal/40 mb-8">
-                                    Select one or more services, then continue
+                                    Izberite eno ali več storitev in nadaljujte
                                 </p>
 
                                 {loadingServices ? (
@@ -476,7 +478,7 @@ function BookingContent() {
                                     </div>
                                 ) : categories.length === 0 ? (
                                     <div className="text-center py-20 text-charcoal/50">
-                                        <p>No services available at the moment.</p>
+                                        <p>Trenutno ni na voljo nobenih storitev.</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-10">
@@ -548,7 +550,7 @@ function BookingContent() {
                                                                         <span className={`text-xs font-semibold transition-colors ${
                                                                             isSelected ? "text-gold" : "text-charcoal/30"
                                                                         }`}>
-                                                                            {isSelected ? "Selected ✓" : "+ Add"}
+                                                                            {isSelected ? "Izbrano ✓" : "+ Dodaj"}
                                                                         </span>
                                                                     </div>
                                                                 </motion.button>
@@ -573,7 +575,9 @@ function BookingContent() {
                                                         className="w-full py-4 bg-charcoal text-porcelain rounded-xl font-bold text-[15px] hover:bg-charcoal/90 transition-all shadow-lg hover:shadow-xl"
                                                     >
                                                         <span className="flex items-center justify-center gap-2">
-                                                            Continue with {selectedServiceIds.length} service{selectedServiceIds.length > 1 ? "s" : ""}
+                                                            {selectedServiceIds.length === 1
+                                                                ? `Nadaljuj z ${selectedServiceIds.length} storitvijo`
+                                                                : `Nadaljuj z ${selectedServiceIds.length} storitvami`}
                                                             <span className="text-porcelain/50">·</span>
                                                             <span className="text-porcelain/80">€{totalPrice}</span>
                                                             <span className="text-porcelain/50">·</span>
@@ -610,7 +614,7 @@ function BookingContent() {
                                         </svg>
                                     </button>
                                     <h2 className="text-xl font-playfair font-bold text-charcoal mx-auto pr-7">
-                                        Pick a Date
+                                        Izberite datum
                                     </h2>
                                 </div>
                                 <BookingCalendar
@@ -641,14 +645,14 @@ function BookingContent() {
                                         </svg>
                                     </button>
                                     <h2 className="text-xl font-playfair font-bold text-charcoal mx-auto pr-7">
-                                        Choose a Time
+                                        Izberite uro
                                     </h2>
                                 </div>
 
-                                <p className="text-center text-sm text-charcoal/50 mb-8">
-                                    {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
+                                <p className="text-center text-sm text-charcoal/50 mb-8 capitalize">
+                                    {selectedDate && format(selectedDate, "EEEE, d. MMMM yyyy", { locale: sl })}
                                     {selectedServices.length > 0 && (
-                                        <span className="text-charcoal/30"> · {totalDuration} min total</span>
+                                        <span className="text-charcoal/30 normal-case"> · {totalDuration} min skupaj</span>
                                     )}
                                 </p>
 
@@ -695,19 +699,19 @@ function BookingContent() {
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                     </svg>
                                                 </div>
-                                                <p className="text-charcoal/50 mb-2">No available times for this date.</p>
+                                                <p className="text-charcoal/50 mb-2">Za ta datum ni prostih terminov.</p>
                                                 <button
                                                     onClick={goBack}
                                                     className="text-gold text-sm font-medium hover:underline"
                                                 >
-                                                    ← Try another date
+                                                    ← Izberite drug datum
                                                 </button>
                                             </div>
                                         )}
 
                                         {availableSlots.length > 0 && availableSlots.length <= 4 && (
                                             <p className="text-center text-xs text-gold-dark mt-4 font-medium">
-                                                Limited availability — book soon!
+                                                Zadnji prosti termini — rezervirajte kmalu!
                                             </p>
                                         )}
 
@@ -715,11 +719,11 @@ function BookingContent() {
                                         <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-dusty-rose/20">
                                             <div className="flex items-center gap-1.5">
                                                 <div className="w-3 h-3 rounded bg-porcelain border border-dusty-rose/30" />
-                                                <span className="text-[10px] text-charcoal/40">Available</span>
+                                                <span className="text-[10px] text-charcoal/40">Prosto</span>
                                             </div>
                                             <div className="flex items-center gap-1.5">
                                                 <div className="w-3 h-3 rounded bg-blush-light border border-dusty-rose/15" />
-                                                <span className="text-[10px] text-charcoal/40">Unavailable</span>
+                                                <span className="text-[10px] text-charcoal/40">Zasedeno</span>
                                             </div>
                                         </div>
                                     </>
@@ -748,7 +752,7 @@ function BookingContent() {
                                         </svg>
                                     </button>
                                     <h2 className="text-xl font-playfair font-bold text-charcoal mx-auto pr-7">
-                                        Your Details
+                                        Vaši podatki
                                     </h2>
                                 </div>
 
@@ -775,8 +779,8 @@ function BookingContent() {
                                         ))}
                                     </div>
                                     <div className="border-t border-dusty-rose/30 mt-3 pt-3 flex items-center justify-between">
-                                        <p className="text-charcoal/50 text-xs">
-                                            {selectedDate && format(selectedDate, "EEEE, MMMM d")} · {totalDuration} min total
+                                        <p className="text-charcoal/50 text-xs capitalize">
+                                            {selectedDate && format(selectedDate, "EEEE, d. MMMM", { locale: sl })} <span className="normal-case">· {totalDuration} min skupaj</span>
                                         </p>
                                         <span className="text-xl font-bold font-playfair text-charcoal">
                                             €{totalPrice}
@@ -794,7 +798,7 @@ function BookingContent() {
                                     {/* Name */}
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-semibold text-charcoal/50 uppercase tracking-wider pl-1">
-                                            Full Name
+                                            Ime in priimek
                                         </label>
                                         <input
                                             type="text"
@@ -805,7 +809,7 @@ function BookingContent() {
                                             }}
                                             onBlur={() => handleBlur("name", name)}
                                             className={getFieldClass("name")}
-                                            placeholder="Your full name"
+                                            placeholder="Vaše ime in priimek"
                                             autoComplete="name"
                                         />
                                         {touched.name && errors.name && (
@@ -826,7 +830,7 @@ function BookingContent() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-charcoal/50 uppercase tracking-wider pl-1">
-                                                Email
+                                                E-pošta
                                             </label>
                                             <input
                                                 type="email"
@@ -837,7 +841,7 @@ function BookingContent() {
                                                 }}
                                                 onBlur={() => handleBlur("email", email)}
                                                 className={getFieldClass("email")}
-                                                placeholder="your@email.com"
+                                                placeholder="vas@email.com"
                                                 autoComplete="email"
                                             />
                                             {touched.email && errors.email && (
@@ -855,7 +859,7 @@ function BookingContent() {
                                         </div>
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-semibold text-charcoal/50 uppercase tracking-wider pl-1">
-                                                Phone
+                                                Telefon
                                             </label>
                                             <input
                                                 type="tel"
@@ -887,13 +891,13 @@ function BookingContent() {
                                     {/* Notes */}
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-semibold text-charcoal/50 uppercase tracking-wider pl-1">
-                                            Notes <span className="text-charcoal/30 normal-case">(optional)</span>
+                                            Opombe <span className="text-charcoal/30 normal-case">(neobvezno)</span>
                                         </label>
                                         <textarea
                                             value={notes}
                                             onChange={(e) => setNotes(e.target.value)}
                                             className="w-full px-5 py-3.5 rounded-xl bg-blush-light border border-dusty-rose/30 outline-none focus:border-gold focus:ring-2 focus:ring-gold/10 transition-all h-24 resize-none text-charcoal placeholder:text-charcoal/30"
-                                            placeholder="Any special requests, allergies, or notes?"
+                                            placeholder="Morebitne posebne zahteve, alergije ali opombe?"
                                             maxLength={500}
                                         />
                                         {notes.length > 400 && (
@@ -910,11 +914,11 @@ function BookingContent() {
                                         {submitting ? (
                                             <span className="flex items-center justify-center gap-2">
                                                 <span className="animate-spin rounded-full h-4 w-4 border-2 border-porcelain/30 border-t-porcelain" />
-                                                Confirming booking...
+                                                Potrjujem rezervacijo...
                                             </span>
                                         ) : (
                                             <span className="flex items-center justify-center gap-2">
-                                                Confirm Booking
+                                                Potrdi rezervacijo
                                                 <span className="text-porcelain/50">·</span>
                                                 <span className="text-porcelain/80">€{totalPrice}</span>
                                             </span>
@@ -953,10 +957,10 @@ function BookingContent() {
                                 </motion.div>
 
                                 <h2 className="text-2xl font-playfair font-bold text-charcoal mb-2">
-                                    Booking Confirmed!
+                                    Rezervacija potrjena!
                                 </h2>
                                 <p className="text-charcoal/50 text-sm mb-8">
-                                    A confirmation email has been sent to{" "}
+                                    Potrditveno sporočilo je bilo poslano na{" "}
                                     <span className="font-medium text-charcoal">{email}</span>
                                 </p>
 
@@ -969,19 +973,19 @@ function BookingContent() {
                                     ))}
                                     {selectedServices.length > 1 && (
                                         <div className="border-t border-dusty-rose/20 mt-2 pt-2 flex justify-between">
-                                            <span className="font-bold text-charcoal text-sm">Total</span>
+                                            <span className="font-bold text-charcoal text-sm">Skupaj</span>
                                             <span className="font-bold text-charcoal">€{totalPrice}</span>
                                         </div>
                                     )}
                                     <p className="text-charcoal/50 text-sm mt-3 mb-4">
-                                        {totalDuration} minutes · €{totalPrice}
+                                        {totalDuration} minut · €{totalPrice}
                                     </p>
                                     <div className="flex items-center justify-center gap-3 py-3 bg-blush/50 rounded-xl text-sm font-semibold text-charcoal">
-                                        <span>{selectedDate && format(selectedDate, "EEE, MMM d, yyyy")}</span>
+                                        <span>{selectedDate && format(selectedDate, "EEE, d. MMM yyyy", { locale: sl })}</span>
                                         <span className="text-charcoal/20">|</span>
                                         <span>{selectedTime}</span>
                                     </div>
-                                    <p className="text-xs text-charcoal/40 mt-3">Booked for {name}</p>
+                                    <p className="text-xs text-charcoal/40 mt-3">Rezervirano za {name}</p>
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -989,7 +993,7 @@ function BookingContent() {
                                         onClick={() => router.push("/")}
                                         className="px-8 py-3 bg-charcoal text-porcelain rounded-xl font-semibold hover:bg-charcoal/90 transition-colors"
                                     >
-                                        Return Home
+                                        Vrnitev na prvo stran
                                     </button>
                                     <button
                                         onClick={() => {
@@ -1006,7 +1010,7 @@ function BookingContent() {
                                         }}
                                         className="px-8 py-3 bg-porcelain text-charcoal rounded-xl font-semibold border border-dusty-rose/30 hover:bg-blush transition-colors"
                                     >
-                                        Book Another
+                                        Nova rezervacija
                                     </button>
                                 </div>
                             </motion.div>

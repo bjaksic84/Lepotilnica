@@ -15,11 +15,11 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "Lepotilnica by Karin | Premium Beauty Salon in Ljubljana",
+    default: "Lepotilnica by Karin | Prestižni kozmetični salon v Ljubljani",
     template: "%s | Lepotilnica by Karin",
   },
   description:
-    "Discover premium beauty treatments at Lepotilnica by Karin — Ljubljana's exclusive beauty salon. Expert facials, lash extensions, brow styling, and more. Book your appointment online.",
+    "Odkrijte prestižne lepotne tretmaje v Lepotilnici by Karin — ekskluzivnem kozmetičnem salonu v Ljubljani. Strokovna nega obraza, podaljševanje trepalnic, oblikovanje obrvi in več. Rezervirajte svoj termin na spletu.",
   keywords: [
     "beauty salon Ljubljana",
     "kozmetični salon Ljubljana",
@@ -48,23 +48,23 @@ export const metadata: Metadata = {
     type: "website",
     locale: "sl_SI",
     siteName: "Lepotilnica by Karin",
-    title: "Lepotilnica by Karin | Premium Beauty Salon in Ljubljana",
+    title: "Lepotilnica by Karin | Prestižni kozmetični salon v Ljubljani",
     description:
-      "Experience premium beauty treatments in a sanctuary of elegance. Expert facials, lash extensions, brow styling, and more.",
+      "Izkušnja prestižnih lepotnih tretmajev v svetišču elegance. Strokovna nega obraza, podaljševanje trepalnic, oblikovanje obrvi in več.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Lepotilnica by Karin — Premium Beauty Salon",
+        alt: "Lepotilnica by Karin — Prestižni kozmetični salon",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lepotilnica by Karin | Premium Beauty Salon",
+    title: "Lepotilnica by Karin | Prestižni kozmetični salon",
     description:
-      "Experience premium beauty treatments in a sanctuary of elegance. Book online today.",
+      "Izkušnja prestižnih lepotnih tretmajev v svetišču elegance. Rezervirajte na spletu še danes.",
     images: ["/og-image.png"],
   },
   robots: {
@@ -103,7 +103,7 @@ function JsonLd() {
     name: "Lepotilnica by Karin",
     alternateName: "Lepotilnica",
     description:
-      "Premium beauty salon offering expert facials, lash extensions, brow styling, and more in Ljubljana, Slovenia.",
+      "Prestižni kozmetični salon, ki nudi strokovne nege obraza, podaljševanje trepalnic, oblikovanje obrvi in še več v Ljubljani, Slovenija.",
     url: baseUrl,
     logo: `${baseUrl}/logo.png`,
     image: [
@@ -147,7 +147,7 @@ function JsonLd() {
     ],
     priceRange: "€€",
     currenciesAccepted: "EUR",
-    paymentAccepted: "Cash, Credit Card",
+    paymentAccepted: "Gotovina, plačilna kartica",
     areaServed: {
       "@type": "City",
       name: "Ljubljana",
@@ -155,40 +155,40 @@ function JsonLd() {
     },
     hasOfferCatalog: {
       "@type": "OfferCatalog",
-      name: "Beauty Treatments",
+      name: "Lepotni tretmaji",
       itemListElement: [
         {
           "@type": "OfferCatalog",
-          name: "Facial Treatments",
+          name: "Nega obraza",
           itemListElement: [
             {
               "@type": "Offer",
               itemOffered: {
                 "@type": "Service",
-                name: "Premium Facial Treatment",
-                description: "Expert facial treatments for radiant, healthy skin",
+                name: "Vrhunska nega obraza",
+                description: "Strokovne negovalne terapije za sijočo in zdravo kožo",
               },
             },
           ],
         },
         {
           "@type": "OfferCatalog",
-          name: "Lash & Brow",
+          name: "Trepalnice in obrvi",
           itemListElement: [
             {
               "@type": "Offer",
               itemOffered: {
                 "@type": "Service",
-                name: "Lash Extensions",
-                description: "Professional lash extension application",
+                name: "Podaljševanje trepalnic",
+                description: "Strokovna aplikacija podaljškov trepalnic",
               },
             },
             {
               "@type": "Offer",
               itemOffered: {
                 "@type": "Service",
-                name: "Brow Styling",
-                description: "Expert brow shaping and styling",
+                name: "Oblikovanje obrvi",
+                description: "Strokovno oblikovanje in urejanje obrvi",
               },
             },
           ],
@@ -204,7 +204,7 @@ function JsonLd() {
     "@id": `${baseUrl}/#website`,
     url: baseUrl,
     name: "Lepotilnica by Karin",
-    description: "Premium beauty salon in Ljubljana — book your appointment online",
+    description: "Prestižni kozmetični salon v Ljubljani — rezervirajte termin prek spleta",
     publisher: { "@id": `${baseUrl}/#salon` },
     inLanguage: "sl-SI",
   };

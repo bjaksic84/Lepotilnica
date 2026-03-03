@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-    title: "Book an Appointment",
+    title: "Rezerviraj termin",
     description:
-        "Book your beauty treatment online at Lepotilnica by Karin in Ljubljana. Choose from facials, lash extensions, brow styling, manicures and more. Instant confirmation.",
+        "Rezervirajte svoj lepotni tretma prek spleta v Lepotilnici by Karin v Ljubljani. Izbirajte med nego obraza, podaljševanjem trepalnic, oblikovanjem obrvi, manikuro in več. Takojšna potrditev.",
     openGraph: {
-        title: "Book an Appointment — Lepotilnica by Karin",
+        title: "Rezerviraj termin — Lepotilnica by Karin",
         description:
-            "Schedule your next beauty treatment online. Easy booking, instant confirmation.",
+            "Rezervirajte naslednji lepotni tretma prek spleta. Enostavna rezervacija, takojšna potrditev.",
         url: "/book",
     },
     alternates: {

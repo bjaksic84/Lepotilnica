@@ -188,7 +188,7 @@ export default function ServicesList({ categories }: { categories: CategoryWithS
                                     <div className={`relative h-48 bg-gradient-to-br ${gradients[sIndex % gradients.length]} overflow-hidden hidden md:block`}>
                                         <Image
                                             src={getServiceImage(service.name)}
-                                            alt={`${service.name} — beauty treatment at Lepotilnica by Karin`}
+                                            alt={`${service.name} — lepotni tretma v Lepotilnici by Karin`}
                                             fill
                                             className="object-cover group-hover:scale-105 transition-transform duration-500"
                                             sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
@@ -359,7 +359,7 @@ export default function ServicesList({ categories }: { categories: CategoryWithS
                             <div className="relative h-52 bg-gradient-to-br from-dusty-rose/40 to-blush overflow-hidden">
                                 <Image
                                     src={getServiceImage(modalService.name)}
-                                    alt={`${modalService.name} — beauty treatment at Lepotilnica by Karin`}
+                                    alt={`${modalService.name} — lepotni tretma v Lepotilnici by Karin`}
                                     fill
                                     className="object-cover"
                                     sizes="(max-width: 768px) 100vw, 400px"
