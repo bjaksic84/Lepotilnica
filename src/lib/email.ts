@@ -1,6 +1,16 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazily construct the Resend client so importing this module is side-effect
+// free. `new Resend()` throws when RESEND_API_KEY is missing, which would break
+// the build's page-data collection; deferring it to send time avoids that.
+let _resend: Resend | null = null;
+
+function getResend(): Resend {
+    if (!_resend) {
+        _resend = new Resend(process.env.RESEND_API_KEY);
+    }
+    return _resend;
+}
 
 const FROM_EMAIL = "Lepotilnica by Karin <onboarding@resend.dev>";
 
@@ -206,7 +216,7 @@ export async function sendBookingConfirmation(data: BookingEmailData): Promise<{
             ? data.items[0].serviceName
             : `${data.items.length} services`;
 
-        const { error } = await resend.emails.send({
+        const { error } = await getResend().emails.send({
             from: FROM_EMAIL,
             to: [data.customerEmail],
             subject: `Booking Confirmed – ${subjectService} on ${formatDate(data.date)}`,
