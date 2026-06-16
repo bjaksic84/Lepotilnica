@@ -1,5 +1,9 @@
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
-import { createClient } from "@libsql/client";
+// Use the fetch-based web client: the default `@libsql/client` resolves to a
+// Node transport that calls `https.request`, which is unimplemented on the
+// Cloudflare Workers runtime (unenv). The `/web` build talks over `fetch`.
+// Note: this only supports remote (libsql://, https://, wss://) URLs — not file:.
+import { createClient } from "@libsql/client/web";
 import * as schema from "./schema";
 
 // Lazily create the libSQL client on first use rather than at module load.
@@ -13,6 +17,11 @@ function getDb(): LibSQLDatabase<typeof schema> {
         const client = createClient({
             url: process.env.TURSO_DATABASE_URL!,
             authToken: process.env.TURSO_AUTH_TOKEN,
+            // Inject the runtime's native fetch. The hrana HTTP transport
+            // otherwise imports `cross-fetch`, which resolves to a Node
+            // `https.request` shim that is unimplemented on the Cloudflare
+            // Workers runtime. Native fetch works in both workerd and Node 18+.
+            fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
         });
         _db = drizzle(client, { schema });
     }
