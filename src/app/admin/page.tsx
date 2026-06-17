@@ -5,6 +5,8 @@ import { format, startOfWeek, endOfWeek } from "date-fns";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import WeeklyTimetable, { Booking as WeeklyBooking, BlockedTime } from "@/components/WeeklyTimetable";
+import BlockRangePanel from "@/components/BlockRangePanel";
+import { getScheduleForDateStr, timeToMinutes, minutesToTime } from "@/lib/schedule";
 import { useWebSocket, WsEvent } from "@/lib/useWebSocket";
 import ToastContainer, { useToast } from "@/components/Toast";
 
@@ -59,6 +61,7 @@ export default function AdminPage() {
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [noShowMap, setNoShowMap] = useState<Record<string, number>>({});
+    const [blockingRange, setBlockingRange] = useState(false);
 
     const router = useRouter();
     const { toasts, addToast, removeToast } = useToast();
@@ -237,6 +240,65 @@ export default function AdminPage() {
         } catch (error) {
             console.error(error);
             alert("Error blocking time");
+        }
+    };
+
+    const handleBlockRange = async (
+        startDate: string,
+        startTime: string,
+        endDate: string,
+        endTime: string,
+        reason: string
+    ) => {
+        // Build one blocked-time row per OPEN day in the range, clamped to working hours.
+        const blocks: { date: string; startTime: string; endTime: string; reason: string }[] = [];
+        const cursor = new Date(`${startDate}T00:00:00`);
+        const last = new Date(`${endDate}T00:00:00`);
+
+        while (cursor <= last) {
+            const ds = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+            const schedule = getScheduleForDateStr(ds);
+            if (schedule) {
+                const openMin = timeToMinutes(schedule.open);
+                const closeMin = timeToMinutes(schedule.close);
+                let s = openMin;
+                let e = closeMin;
+                if (ds === startDate) s = Math.max(openMin, timeToMinutes(startTime));
+                if (ds === endDate) e = Math.min(closeMin, timeToMinutes(endTime));
+                if (s < e) {
+                    blocks.push({ date: ds, startTime: minutesToTime(s), endTime: minutesToTime(e), reason: reason || "Odsotnost" });
+                }
+            }
+            cursor.setDate(cursor.getDate() + 1);
+        }
+
+        if (blocks.length === 0) {
+            addToast({ type: "warning", title: "Nič za blokirati", message: "Izbrano obdobje ne vsebuje delovnih ur." });
+            return;
+        }
+
+        setBlockingRange(true);
+        try {
+            const results = await Promise.all(
+                blocks.map((b) =>
+                    fetch("/api/admin/blocked-times", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(b),
+                    })
+                )
+            );
+            const failed = results.filter((r) => !r.ok).length;
+            if (failed > 0) {
+                addToast({ type: "warning", title: "Delno blokirano", message: `${blocks.length - failed} blokiranih, ${failed} neuspešnih.` });
+            } else {
+                addToast({ type: "success", title: "Obdobje blokirano", message: `Blokiranih ${blocks.length} ${blocks.length === 1 ? "dan" : "dni"}.` });
+            }
+            fetchData();
+        } catch (error) {
+            addToast({ type: "warning", title: "Napaka", message: "Blokiranje obdobja ni uspelo." });
+        } finally {
+            setBlockingRange(false);
         }
     };
 
@@ -481,11 +543,12 @@ export default function AdminPage() {
                 {/* ── Calendar Tab ────────────────────────────────────── */}
                 {activeTab === "calendar" && (
                     <div className="space-y-4">
+                        <BlockRangePanel onBlock={handleBlockRange} blocking={blockingRange} />
                         <div className="bg-yellow-50 border border-yellow-100 p-4 rounded-xl flex items-start gap-3">
                             <svg className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <div>
                                 <h3 className="font-bold text-yellow-800 text-sm">How to use the calendar</h3>
-                                <p className="text-yellow-700 text-sm">Click a booking to see full details. Drag on empty slots to block time. Click a blocked slot to remove it.</p>
+                                <p className="text-yellow-700 text-sm">Click a booking to see full details. <span className="font-semibold">Desktop:</span> drag empty slots to block time. <span className="font-semibold">Tablet:</span> tap an empty slot to block 30 min. For longer absences (vacation), use the block panel above. Click a blocked slot to remove it.</p>
                             </div>
                         </div>
                         <WeeklyTimetable

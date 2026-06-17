@@ -51,14 +51,10 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
         <>
             {/* Services Preview Section */}
             <section id="services" ref={servicesRef} className="py-32 relative overflow-hidden">
-                {/* Subtle aurora background */}
+                {/* Single drifting accent — restrained */}
                 <motion.div style={{ y: yServices1 }} className="absolute z-0 inset-0 pointer-events-none">
-                    <div className="absolute top-0 right-0 w-[800px] h-[800px] rounded-full opacity-30 -translate-y-1/2 translate-x-1/2 -z-10"
-                        style={{ background: "radial-gradient(circle, rgba(232,213,213,0.4) 0%, transparent 70%)" }} />
-                </motion.div>
-                <motion.div style={{ y: yServices2 }} className="absolute z-0 inset-0 pointer-events-none">
-                    <div className="absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full opacity-20 translate-y-1/2 -translate-x-1/4 -z-10"
-                        style={{ background: "radial-gradient(circle, rgba(212,175,55,0.08) 0%, transparent 70%)" }} />
+                    <div className="absolute top-0 right-0 w-[700px] h-[700px] rounded-full opacity-25 -translate-y-1/3 translate-x-1/3 -z-10"
+                        style={{ background: "radial-gradient(circle, rgba(232,213,213,0.35) 0%, transparent 70%)" }} />
                 </motion.div>
 
                 <div className="container mx-auto px-4 relative z-10">
@@ -67,13 +63,14 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.8, ease: "easeOut" }}
-                        className="text-center mb-20"
+                        className="mb-20 flex flex-col md:flex-row md:items-end md:justify-between gap-6"
                     >
-                        <span className="text-gold font-semibold tracking-[0.15em] uppercase mb-4 text-xs block">Vrhunska nega</span>
-                        <h2 className="text-5xl md:text-6xl font-playfair font-bold text-charcoal mb-6">Naše storitve</h2>
-                        <div className="w-24 h-px bg-gradient-to-r from-transparent via-gold to-transparent mx-auto" />
-                        <p className="mt-8 text-charcoal/50 text-xl max-w-2xl mx-auto font-light leading-relaxed">
-                            Prepustite se naši skrbno izbrani ponudbi tretmajev, zasnovani za pomladitev vašega telesa, uma in duha.
+                        <div className="max-w-xl">
+                            <div className="w-12 h-px bg-gold mb-6" />
+                            <h2 className="text-5xl md:text-6xl font-playfair font-bold text-charcoal leading-[1.05]">Naše storitve</h2>
+                        </div>
+                        <p className="text-charcoal/50 text-lg max-w-md font-light leading-relaxed md:text-right md:pb-2">
+                            Prepustite se naši skrbno izbrani ponudbi tretmajev, zasnovani za pomladitev telesa, uma in duha.
                         </p>
                     </motion.div>
 
@@ -86,8 +83,8 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                     whileInView={{ opacity: 1, y: 0 }}
                                     viewport={{ once: true }}
                                     transition={{ duration: 0.7, delay: i * 0.2, ease: "easeOut" }}
-                                    whileHover={{ y: -10, boxShadow: "0 20px 50px rgba(232,213,213,0.7), 0 8px 20px rgba(212,175,55,0.15)" }}
-                                    style={{ boxShadow: "0 8px 30px rgba(232,213,213,0.55), 0 2px 8px rgba(0,0,0,0.06)" }}
+                                    whileHover={{ y: -10, boxShadow: "var(--shadow-card-hover)" }}
+                                    style={{ boxShadow: "var(--shadow-card)" }}
                                     className="bg-porcelain rounded-2xl overflow-hidden border border-dusty-rose/40 transition-all duration-300 group flex flex-col"
                                 >
                                     {/* Service image */}
@@ -138,7 +135,7 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                                 className="w-11 h-11 bg-charcoal rounded-full flex items-center justify-center text-porcelain group-hover:bg-gold transition-colors shadow-lg"
                                                 aria-label={`Rezerviraj ${service.name}`}
                                             >
-                                                <svg className="w-4 h-4 -rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                                                 </svg>
                                             </Link>
@@ -231,7 +228,7 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                             className="text-5xl md:text-6xl font-playfair font-bold mb-8 leading-tight"
                         >
                             Posvečeno <br className="hidden md:block" />
-                            <span className="text-gold-gradient">umetnosti lepote</span>
+                            <span className="text-gold">umetnosti lepote</span>
                         </motion.h2>
                         <motion.div 
                             variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } } }}

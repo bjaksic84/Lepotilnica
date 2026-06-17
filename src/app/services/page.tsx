@@ -48,20 +48,27 @@ import Link from "next/link";
 
 function ServicesCTA() {
     return (
-        <section className="container mx-auto px-4 text-center mt-32">
-            <div className="glass-panel p-12 rounded-3xl max-w-3xl mx-auto transform transition-all hover:scale-[1.02] duration-500">
-                <h2 className="text-4xl font-playfair font-bold text-charcoal mb-4">
-                    Ste pripravljeni na razvajanje?
-                </h2>
-                <p className="text-charcoal/50 text-lg mb-8 font-light">
-                    Rezervirajte svoj termin še danes in nam prepustite skrb za vas.
-                </p>
-                <Link
-                    href="/book"
-                    className="inline-block px-12 py-4 bg-gold text-charcoal rounded-full font-bold hover:bg-gold-light transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
-                >
-                    Rezerviraj termin
-                </Link>
+        <section className="container mx-auto px-4 max-w-7xl mt-32">
+            <div className="relative overflow-hidden bg-charcoal text-porcelain p-10 md:p-16 rounded-3xl">
+                <div className="absolute top-[-30%] right-[-10%] w-[400px] h-[400px] rounded-full opacity-30 pointer-events-none"
+                    style={{ background: "var(--glow-gold)" }} />
+                <div className="relative z-10 max-w-2xl">
+                    <h2 className="text-4xl md:text-5xl font-playfair font-bold mb-4 leading-tight">
+                        Ste pripravljeni na razvajanje?
+                    </h2>
+                    <p className="text-porcelain/50 text-lg mb-8 font-light">
+                        Rezervirajte svoj termin še danes in nam prepustite skrb za vas.
+                    </p>
+                    <Link
+                        href="/book"
+                        className="inline-flex items-center gap-2 px-10 py-4 bg-gold text-charcoal rounded-full font-bold hover:bg-gold-light transition-colors"
+                    >
+                        Rezerviraj termin
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </Link>
+                </div>
             </div>
         </section>
     );

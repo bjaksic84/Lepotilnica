@@ -116,10 +116,7 @@ export default function ServicesList({ categories }: { categories: CategoryWithS
                 >
                     {/* Category Header */}
                     <div className="mb-8 md:mb-12">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="w-8 h-px bg-gold" />
-                            <span className="text-gold text-xs font-semibold uppercase tracking-[0.2em]">Kategorija</span>
-                        </div>
+                        <div className="w-8 h-px bg-gold mb-4" />
                         <h2 className="text-4xl md:text-5xl font-playfair font-bold text-charcoal mb-3">
                             {category.name}
                         </h2>

@@ -1,122 +1,81 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
 
 export default function Hero() {
     return (
         <section className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-porcelain">
-            {/* ── Aurora Mesh Background ── */}
+            {/* ── Faded full-bleed background image (static) ── */}
             <div className="absolute inset-0 z-0">
-                {/* Base warm gradient */}
-                <div className="absolute inset-0 bg-gradient-to-br from-porcelain via-blush-light to-porcelain" />
-                {/* Floating aurora orbs */}
-                <motion.div
-                    className="absolute top-[-15%] left-[-10%] w-[500px] h-[500px] md:w-[700px] md:h-[700px] rounded-full opacity-40"
-                    style={{
-                        background: "radial-gradient(circle, rgba(232,213,213,0.6) 0%, transparent 70%)",
-                    }}
-                    animate={{
-                        x: [0, 80, 0],
-                        y: [0, 40, 0],
-                        scale: [1, 1.08, 1],
-                    }}
-                    transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+                <Image
+                    src="/services/biab-manikura.jpeg"
+                    alt=""
+                    fill
+                    priority
+                    // DIAL 3 — softness: blur-[1px] sharper · blur-[3px] hazier
+                    className="object-cover blur-[1px] scale-[1.03]"
+                    sizes="100vw"
                 />
-                <motion.div
-                    className="absolute top-[15%] right-[-15%] w-[400px] h-[400px] md:w-[600px] md:h-[600px] rounded-full opacity-30"
-                    style={{
-                        background: "radial-gradient(circle, rgba(212,175,55,0.15) 0%, transparent 70%)",
-                    }}
-                    animate={{
-                        x: [0, -70, 0],
-                        y: [0, -40, 0],
-                        scale: [1, 1.12, 1],
-                    }}
-                    transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <motion.div
-                    className="absolute bottom-[-10%] left-[15%] w-[500px] h-[500px] md:w-[700px] md:h-[700px] rounded-full opacity-35"
-                    style={{
-                        background: "radial-gradient(circle, rgba(242,230,230,0.5) 0%, transparent 65%)",
-                    }}
-                    animate={{
-                        x: [0, 50, 0],
-                        y: [0, -35, 0],
-                        scale: [1, 1.06, 1],
-                    }}
-                    transition={{ duration: 30, repeat: Infinity, ease: "easeInOut" }}
-                />
-                {/* Soft champagne glow in center */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-20 blur-[100px]"
-                    style={{ background: "radial-gradient(circle, rgba(212,175,55,0.2) 0%, transparent 70%)" }}
-                />
+                {/* DIAL 1 — overall wash. Lower % = image MORE visible (/45), higher = more faded (/70) */}
+                <div className="absolute inset-0 bg-porcelain/50" />
+                {/* DIAL 2 — vertical fade. First value = top, last = solid porcelain bottom (blends into page) */}
+                <div className="absolute inset-0 bg-gradient-to-b from-porcelain/65 via-porcelain/35 to-porcelain" />
+                {/* Soft champagne glow */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-40"
+                    style={{ background: "var(--glow-gold)" }} />
             </div>
 
-            {/* Glass Panel Content */}
-            <div className="relative z-10 px-4 max-w-5xl mx-auto w-full pt-20 md:pt-0">
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                    className="text-center p-6 sm:p-8 md:p-16 rounded-3xl"
+            <div className="relative z-10 container mx-auto px-4 pt-28 pb-20 text-center">
+                <motion.span
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.7, ease: "easeOut" }}
+                    className="inline-flex items-center gap-3 text-gold-dark text-xs font-semibold tracking-[0.2em] uppercase mb-8"
                 >
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="mb-6"
-                    >
-                        <span className="inline-block px-4 py-1.5 rounded-full border border-gold/30 bg-blush/50 text-gold-dark text-xs font-semibold tracking-[0.15em] uppercase backdrop-blur-sm">
-                            Est. 2025
-                        </span>
-                    </motion.div>
+                    <span className="w-8 h-px bg-gold/60" />
+                    Est. 2025 — Ljubljana
+                    <span className="w-8 h-px bg-gold/60" />
+                </motion.span>
 
-                    <motion.h1
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.8, ease: "easeOut", delay: 0.3 }}
-                        className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-playfair font-bold text-charcoal mb-6 md:mb-8 leading-[1.1] tracking-tight"
-                    >
-                        Lepotilnica <span className="text-gold-gradient">by Karin</span>
-                    </motion.h1>
+                <motion.h1
+                    initial={{ opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.9, ease: "easeOut", delay: 0.1 }}
+                    className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-playfair text-charcoal mb-8 leading-[1.05] tracking-tight [overflow-wrap:anywhere]"
+                >
+                    Lepotilnica
+                    <span className="block font-bold text-gold-dark">by Karin</span>
+                </motion.h1>
 
-                    <motion.p
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
-                        className="text-base sm:text-lg md:text-xl text-charcoal/60 mb-10 md:mb-12 font-light max-w-2xl mx-auto leading-relaxed"
-                    >
-                        Profesionalna nega, prilagojena vašim željam in sodobnim trendom. <br />
-                        Poskrbimo za vaš brezhiben videz in popolno sprostitvev.
-                    </motion.p>
+                <motion.p
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+                    className="text-base sm:text-lg md:text-xl text-charcoal/70 mb-10 font-light max-w-xl mx-auto leading-relaxed"
+                >
+                    Profesionalna nega, prilagojena vašim željam in sodobnim trendom.
+                    Poskrbimo za vaš brezhiben videz in popolno sprostitev.
+                </motion.p>
 
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.8, delay: 0.7, ease: "easeOut" }}
-                        className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center"
-                    >
-                        <Link href="/book" className="btn-primary">
-                            Rezerviraj termin
-                        </Link>
-                        <Link href="#services" className="btn-secondary">
-                            Naše storitve
-                        </Link>
-                    </motion.div>
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
+                    className="flex flex-col sm:flex-row items-center justify-center gap-6"
+                >
+                    <Link href="/book" className="btn-primary">
+                        Rezerviraj termin
+                    </Link>
+                    <Link href="#services" className="link-quiet">
+                        Naše storitve
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </Link>
                 </motion.div>
             </div>
-
-            {/* Scroll Indicator */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.5, duration: 1 }}
-                className="absolute bottom-8 md:bottom-10 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2"
-            >
-                <span className="text-[10px] uppercase tracking-[0.2em] text-charcoal/30 font-medium">Scroll</span>
-                <div className="w-px h-10 bg-gradient-to-b from-gold/40 to-transparent" />
-            </motion.div>
         </section>
     );
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from "date-fns";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 export type Booking = {
     id: number;
@@ -65,18 +65,31 @@ export default function WeeklyTimetable({
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
     const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-    // Drag selection state
+    // Drag selection state (mouse / pen). Touch uses tap-to-block instead.
     const [isDragging, setIsDragging] = useState(false);
     const [selectionStart, setSelectionStart] = useState<{ date: Date; time: number } | null>(null);
     const [selectionEnd, setSelectionEnd] = useState<{ date: Date; time: number } | null>(null);
+    // Tracks the active pointer to distinguish a touch tap from a touch scroll.
+    const pointerRef = useRef<{ day: Date; time: number; pointerType: string; x: number; y: number; moved: boolean } | null>(null);
 
-    const handleMouseDown = (date: Date, time: number) => {
-        setIsDragging(true);
-        setSelectionStart({ date, time });
-        setSelectionEnd({ date, time: time + 0.5 });
+    const resetSelection = () => {
+        pointerRef.current = null;
+        setIsDragging(false);
+        setSelectionStart(null);
+        setSelectionEnd(null);
     };
 
-    const handleMouseEnter = (date: Date, time: number) => {
+    const handlePointerDown = (date: Date, time: number, e: React.PointerEvent) => {
+        pointerRef.current = { day: date, time, pointerType: e.pointerType, x: e.clientX, y: e.clientY, moved: false };
+        // Drag-select only for mouse/pen; touch must stay free to scroll the grid.
+        if (e.pointerType !== "touch") {
+            setIsDragging(true);
+            setSelectionStart({ date, time });
+            setSelectionEnd({ date, time: time + 0.5 });
+        }
+    };
+
+    const handlePointerEnter = (date: Date, time: number) => {
         if (!isDragging || !selectionStart) return;
         if (!isSameDay(date, selectionStart.date)) return;
         if (time >= selectionStart.time) {
@@ -84,16 +97,29 @@ export default function WeeklyTimetable({
         }
     };
 
-    const handleMouseUp = async () => {
+    const handleGridPointerMove = (e: React.PointerEvent) => {
+        const p = pointerRef.current;
+        if (!p) return;
+        if (Math.abs(e.clientX - p.x) > 8 || Math.abs(e.clientY - p.y) > 8) p.moved = true;
+    };
+
+    const handlePointerUp = async () => {
         if (isDragging && selectionStart && selectionEnd) {
             const dateStr = format(selectionStart.date, "yyyy-MM-dd");
             const startVal = Math.min(selectionStart.time, selectionEnd.time - 0.5);
             const endVal = Math.max(selectionStart.time + 0.5, selectionEnd.time);
             await onBlockTime(dateStr, formatTime(startVal), formatTime(endVal));
+        } else {
+            // Touch tap on an empty slot → block that 30-min slot (drag-select isn't usable on touch).
+            const p = pointerRef.current;
+            if (p && p.pointerType === "touch" && !p.moved) {
+                const dateStr = format(p.day, "yyyy-MM-dd");
+                if (confirm(`Blokiraj ${formatTime(p.time)}–${formatTime(p.time + 0.5)}?`)) {
+                    await onBlockTime(dateStr, formatTime(p.time), formatTime(p.time + 0.5));
+                }
+            }
         }
-        setIsDragging(false);
-        setSelectionStart(null);
-        setSelectionEnd(null);
+        resetSelection();
     };
 
     // Current-time indicator position
@@ -106,19 +132,19 @@ export default function WeeklyTimetable({
         <div
             className="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col select-none overflow-hidden"
             style={{ height: "min(920px, 90vh)" }}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={() => {
-                if (isDragging) {
-                    setIsDragging(false);
-                    setSelectionStart(null);
-                    setSelectionEnd(null);
-                }
+            onPointerUp={handlePointerUp}
+            onPointerCancel={resetSelection}
+            onPointerLeave={() => {
+                if (isDragging) resetSelection();
             }}
         >
-            {/* ── Header: Week navigation + Day columns ── */}
-            <div className="flex border-b border-gray-200 bg-gray-50 rounded-t-2xl flex-shrink-0">
-                {/* Nav buttons */}
-                <div className="w-[60px] flex-shrink-0 flex flex-col items-center justify-center gap-0.5 border-r border-gray-200 bg-white rounded-tl-2xl">
+            {/* ── Single scroll area: header + grid scroll together horizontally; header sticky on top ── */}
+            <div className="overflow-auto flex-1 min-h-0 rounded-b-2xl">
+              <div style={{ minWidth: 800 }}>
+                {/* ── Header: Week navigation + Day columns (sticky top) ── */}
+                <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-30">
+                {/* Nav buttons — sticky top-left corner */}
+                <div className="w-[60px] flex-shrink-0 flex flex-col items-center justify-center gap-0.5 border-r border-gray-200 bg-white sticky left-0 z-10">
                     <button
                         onClick={() => onDateChange(subWeeks(currentDate, 1))}
                         className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
@@ -170,11 +196,10 @@ export default function WeeklyTimetable({
                         );
                     })}
                 </div>
-            </div>
+                </div>
 
-            {/* ── Scrollable Grid ── */}
-            <div className="overflow-auto flex-1 min-h-0 rounded-b-2xl">
-                <div className="flex" style={{ minHeight: `${GRID_HEIGHT}px`, minWidth: 800 }}>
+                {/* ── Body grid ── */}
+                <div className="flex" style={{ minHeight: `${GRID_HEIGHT}px` }}>
                     {/* Time Axis */}
                     <div
                         className="w-[60px] flex-shrink-0 bg-white border-r border-gray-200 sticky left-0 z-20 relative"
@@ -192,7 +217,7 @@ export default function WeeklyTimetable({
                     </div>
 
                     {/* Day Columns */}
-                    <div className="flex-1 grid grid-cols-7 relative">
+                    <div className="flex-1 grid grid-cols-7 relative" onPointerMove={handleGridPointerMove}>
                         {days.map((day, colIdx) => {
                             const isToday = isSameDay(day, now);
                             const dayBookings = bookings.filter(
@@ -217,8 +242,8 @@ export default function WeeklyTimetable({
                                                 top: `${TOP_PADDING + (hour - 9) * HOUR_HEIGHT}px`,
                                                 height: `${SLOT_HEIGHT}px`,
                                             }}
-                                            onMouseDown={() => handleMouseDown(day, hour)}
-                                            onMouseEnter={() => handleMouseEnter(day, hour)}
+                                            onPointerDown={(e) => handlePointerDown(day, hour, e)}
+                                            onPointerEnter={() => handlePointerEnter(day, hour)}
                                         />
                                     ))}
 
@@ -371,6 +396,7 @@ export default function WeeklyTimetable({
                         })}
                     </div>
                 </div>
+              </div>
             </div>
         </div>
     );

@@ -14,7 +14,13 @@
   --dusty-rose: #E8D5D5;
   --charcoal: #2D2A2A;
   --gold: #D4AF37;
+  --gold-dark: #AA8C2C;
   --blush: #F2E6E6;
+
+  /* Elevation + ambient tokens */
+  --shadow-card: 0 8px 30px rgba(232, 213, 213, 0.55), 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 20px 50px rgba(232, 213, 213, 0.7), 0 8px 20px rgba(212, 175, 55, 0.15);
+  --glow-gold: radial-gradient(circle, rgba(212, 175, 55, 0.2) 0%, transparent 70%);
 }
 
 @layer base {
@@ -85,8 +91,22 @@
   .btn-secondary {
     @apply px-8 py-3.5 bg-transparent text-charcoal border border-charcoal/20
       font-medium rounded-full hover:bg-blush hover:border-dusty-rose
-      transition-all transform hover:scale-[1.03] active:scale-[0.97]
+      transition-colors active:scale-[0.98]
       tracking-wide text-sm;
+  }
+
+  /* Quiet text link with drawn underline — for demoted CTAs */
+  .link-quiet {
+    @apply relative inline-flex items-center gap-2 text-sm font-medium
+      text-charcoal/70 hover:text-charcoal transition-colors;
+  }
+  .link-quiet::after {
+    content: "";
+    @apply absolute -bottom-0.5 left-0 h-px w-full bg-gold/50
+      origin-left scale-x-0 transition-transform duration-300;
+  }
+  .link-quiet:hover::after {
+    @apply scale-x-100;
   }
 
   /* Ghost button */

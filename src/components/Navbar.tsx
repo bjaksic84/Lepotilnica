@@ -105,46 +105,45 @@ export default function Navbar() {
                         </button>
                     </div>
                 </div>
+                {/* Mobile Menu — anchored to actual navbar height */}
+                <AnimatePresence>
+                    {mobileOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className="absolute top-full inset-x-0 md:hidden bg-porcelain/95 backdrop-blur-xl border-b border-dusty-rose/30 shadow-lg"
+                        >
+                            <div className="container mx-auto px-4 py-6 flex flex-col gap-4">
+                                {NAV_LINKS.map((link) => {
+                                    const isActive = link.href === "/"
+                                        ? pathname === "/"
+                                        : pathname.startsWith(link.href.replace("/#", "/"));
+                                    return (
+                                        <Link
+                                            key={link.href}
+                                            href={link.href}
+                                            className={`font-medium py-2 transition-colors ${
+                                                isActive ? "text-gold" : "text-charcoal hover:text-gold"
+                                            }`}
+                                            onClick={() => setMobileOpen(false)}
+                                        >
+                                            {link.label}
+                                        </Link>
+                                    );
+                                })}
+                                <Link
+                                    href="/book"
+                                    className="btn-primary text-center mt-2"
+                                    onClick={() => setMobileOpen(false)}
+                                >
+                                    Rezerviraj
+                                </Link>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </motion.nav>
-
-            {/* Mobile Menu */}
-            <AnimatePresence>
-                {mobileOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="fixed inset-x-0 top-[64px] z-40 md:hidden bg-porcelain/95 backdrop-blur-xl border-b border-dusty-rose/30 shadow-lg"
-                    >
-                        <div className="container mx-auto px-4 py-6 flex flex-col gap-4">
-                            {NAV_LINKS.map((link) => {
-                                const isActive = link.href === "/"
-                                    ? pathname === "/"
-                                    : pathname.startsWith(link.href.replace("/#", "/"));
-                                return (
-                                    <Link
-                                        key={link.href}
-                                        href={link.href}
-                                        className={`font-medium py-2 transition-colors ${
-                                            isActive ? "text-gold" : "text-charcoal hover:text-gold"
-                                        }`}
-                                        onClick={() => setMobileOpen(false)}
-                                    >
-                                        {link.label}
-                                    </Link>
-                                );
-                            })}
-                            <Link
-                                href="/book"
-                                className="btn-primary text-center mt-2"
-                                onClick={() => setMobileOpen(false)}
-                            >
-                                Rezerviraj
-                            </Link>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </>
     );
 }
