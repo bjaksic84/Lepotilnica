@@ -48,6 +48,7 @@ export const metadata: Metadata = {
   publisher: "Lepotilnica by Karin",
   category: "beauty",
   formatDetection: { telephone: true, address: true, email: true },
+  appleWebApp: { capable: true, title: "Lepotilnica", statusBarStyle: "default" },
   metadataBase: new URL(SITE_URL),
   openGraph: {
     type: "website",
