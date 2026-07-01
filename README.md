@@ -6,12 +6,12 @@
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Rust](https://img.shields.io/badge/Rust-WebSocket-DEA584?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Turso](https://img.shields.io/badge/Turso-SQLite-4FF8D2?logo=turso&logoColor=white)](https://turso.tech/)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 
-Customers can browse services, book appointments online, and manage cancellations — while the salon owner gets a real-time admin dashboard with analytics, customer logs, and complete booking control.
+Customers can browse services, book appointments online, and manage cancellations — while the salon owner gets an auto-refreshing admin dashboard with analytics, customer logs, and complete booking control.
 
-> **Live:** [lepotilnica.si](https://lepotilnica.si)
+> **Live:** [lepotilnica.jaksicbojan1.workers.dev](https://lepotilnica.jaksicbojan1.workers.dev)
 
 ---
 
@@ -48,7 +48,7 @@ Customers can browse services, book appointments online, and manage cancellation
 - **Analytics** — Revenue tracking, booking trends, top services, peak hours, customer breakdowns, daily revenue chart, and loyal customer identification
 - **No-show tracking** — Record no-shows per customer; automatic blacklisting after 2 strikes
 - **Customer logs** — Complete customer directory keyed by email; view booking notes and add/delete admin notes (useful for treatments, allergies, preferences)
-- **Real-time updates** — All admin views update instantly via WebSocket when bookings are created, modified, or cancelled
+- **Auto-refreshing views** — The admin dashboard and logs poll for changes on a short interval, so new bookings appear without a manual reload
 - **Rate limiting** — API-level protection against abuse
 
 ### 🔍 SEO & Discoverability
@@ -74,33 +74,24 @@ Customers can browse services, book appointments online, and manage cancellation
 | **Database** | [Turso](https://turso.tech/) (libSQL — SQLite on the edge) |
 | **ORM** | [Drizzle ORM](https://orm.drizzle.team/) |
 | **Email** | [Resend](https://resend.com/) |
-| **WebSocket Server** | Rust ([axum](https://github.com/tokio-rs/axum) + [tokio](https://tokio.rs/)) — see [`ws-server/`](ws-server/) |
 | **State Management** | [Zustand](https://zustand.docs.pmnd.rs/) |
 | **Validation** | [Zod](https://zod.dev/) |
-| **Deployment** | [Vercel](https://vercel.com/) (web) · [Shuttle](https://www.shuttle.dev/) / Docker (WebSocket server) |
+| **Deployment** | [Cloudflare Workers](https://workers.cloudflare.com/) via [OpenNext](https://opennext.js.org/cloudflare) |
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────┐       ┌──────────────────┐       ┌──────────────┐
-│              │  HTTP  │                  │  SQL   │              │
-│   Browser    │◄──────►│   Next.js App    │◄──────►│  Turso DB    │
-│  (React 19)  │       │  (Vercel Edge)   │       │  (libSQL)    │
-│              │       │                  │       │              │
-└──────┬───────┘       └────────┬─────────┘       └──────────────┘
-       │                        │
-       │  WebSocket             │  HTTP broadcast
-       │                        │
-       ▼                        ▼
-┌──────────────────────────────────────────┐
-│         Rust WebSocket Server            │
-│       (axum · tokio · Shuttle)           │
-└──────────────────────────────────────────┘
+┌──────────────┐       ┌──────────────────────┐       ┌──────────────┐
+│              │  HTTP  │   Next.js App        │  SQL   │              │
+│   Browser    │◄──────►│   on Cloudflare      │◄──────►│  Turso DB    │
+│  (React 19)  │       │   Workers (OpenNext) │       │  (libSQL)    │
+│              │       │                      │       │              │
+└──────────────┘       └──────────────────────┘       └──────────────┘
 ```
 
-The Next.js app handles all HTTP requests, API routes, and server-side rendering. When a booking is created or modified, the API broadcasts an event to the Rust WebSocket server, which fans it out to all connected admin dashboard clients in real time.
+The Next.js app is adapted for Cloudflare Workers with [OpenNext](https://opennext.js.org/cloudflare), serving all HTTP requests, API routes, and server-side rendering from Cloudflare's edge network. The admin dashboard keeps itself current by polling the API on a short interval, so newly created or modified bookings surface without a manual refresh.
 
 ---
 
@@ -116,12 +107,13 @@ The Next.js app handles all HTTP requests, API routes, and server-side rendering
 │   │   └── services/         # Public service catalogue
 │   ├── components/           # Shared React components
 │   ├── db/                   # Drizzle schema, DB client, migration scripts
-│   ├── lib/                  # Utilities (email, rate-limit, schedule, WS, validators)
+│   ├── lib/                  # Utilities (site config, email, rate-limit, schedule, validators)
 │   ├── store/                # Zustand stores
 │   └── types/                # Shared TypeScript types
-├── ws-server/                # Rust WebSocket server (axum)
 ├── drizzle/                  # SQL migration files
-├── public/                   # Static assets
+├── public/                   # Static assets (og-image, logo, icons)
+├── open-next.config.ts       # OpenNext (Cloudflare) adapter config
+├── wrangler.jsonc            # Cloudflare Workers config
 └── drizzle.config.ts         # Drizzle Kit configuration
 ```
 
@@ -131,9 +123,9 @@ The Next.js app handles all HTTP requests, API routes, and server-side rendering
 
 - **Node.js** 18+ (20+ recommended)
 - **npm** (or pnpm / yarn)
-- **Rust** 1.75+ (only if running the WebSocket server locally)
 - A [Turso](https://turso.tech/) database
 - A [Resend](https://resend.com/) API key (for emails)
+- A [Cloudflare](https://cloudflare.com/) account (for deployment only)
 
 ---
 
@@ -160,9 +152,7 @@ cp .env.example .env
 | `TURSO_DATABASE_URL` | Turso database URL (`libsql://...turso.io`) |
 | `TURSO_AUTH_TOKEN` | Auth token from `turso db tokens create <db>` |
 | `ADMIN_PASSWORD` | Password for the admin login page |
-| `NEXT_PUBLIC_BASE_URL` | Public site URL (e.g. `https://lepotilnica.si`) |
-| `NEXT_PUBLIC_WS_URL` | WebSocket server URL (e.g. `wss://ws.lepotilnica.si/ws`) |
-| `WS_BROADCAST_URL` | Broadcast endpoint (e.g. `https://ws.lepotilnica.si/broadcast`) |
+| `NEXT_PUBLIC_BASE_URL` | Public site URL — used for SEO, sitemap & email links (e.g. `https://lepotilnica.jaksicbojan1.workers.dev`). Inlined at build time. |
 | `RESEND_API_KEY` | [Resend](https://resend.com/) API key for transactional emails |
 
 ### 3. Push the database schema
@@ -178,28 +168,13 @@ npx tsx src/db/migrate-cancellation-token.ts
 npx tsx src/db/migrate-customer-notes.ts
 ```
 
-### 4. Start the WebSocket server
-
-```bash
-cd ws-server
-cargo run
-```
-
-The server starts on `http://localhost:8000`.
-
-### 5. Start the dev server
+### 4. Start the dev server
 
 ```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
-
-Or run both at once:
-
-```bash
-npm run dev:all
-```
 
 ---
 
@@ -208,11 +183,12 @@ npm run dev:all
 | Command | Description |
 |---|---|
 | `npm run dev` | Start Next.js development server |
-| `npm run dev:ws` | Start the Rust WebSocket server |
-| `npm run dev:all` | Start both servers simultaneously |
-| `npm run build` | Production build |
+| `npm run build` | Production build (Next.js) |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
+| `npm run preview` | Build with OpenNext and preview the Workers bundle locally |
+| `npm run deploy` | Build with OpenNext and deploy to Cloudflare Workers |
+| `npm run cf-typegen` | Generate Cloudflare env type bindings |
 
 ---
 
@@ -239,21 +215,27 @@ The app ships with production-ready SEO out of the box:
 
 | File | Purpose |
 |---|---|
-| `src/app/sitemap.ts` | Dynamic XML sitemap at `/sitemap.xml` |
-| `src/app/robots.ts` | Crawler rules at `/robots.txt` |
+| `src/lib/site.ts` | Single source of truth for the canonical site URL (used everywhere below) |
+| `src/app/sitemap.ts` | XML sitemap at `/sitemap.xml` |
+| `src/app/robots.ts` | Crawler rules at `/robots.txt` (admin & API excluded) |
 | `src/app/manifest.ts` | Web app manifest at `/manifest.webmanifest` |
-| `src/app/layout.tsx` | Global metadata, Open Graph, JSON-LD schemas |
+| `src/app/layout.tsx` | Global metadata, Open Graph, Twitter cards, `viewport` theme-color, JSON-LD |
+| `src/app/services/page.tsx` | Per-service structured data generated from the live catalogue |
 
-**Structured data** includes four JSON-LD schemas injected on every page:
+**Structured data** — four JSON-LD schemas are injected site-wide, plus two more on the services page:
 
-1. `BeautySalon` — local business info, hours, location, service catalog
+1. `BeautySalon` — local business info, hours, geo-location, payment, area served
 2. `WebSite` — site identity and language
 3. `BreadcrumbList` — navigation hierarchy
-4. `FAQPage` — common questions in Slovenian (rich snippet eligible)
+4. `FAQPage` — common questions in Slovenian (rich-snippet eligible)
+5. `OfferCatalog` + `Service` (services page) — every service with its **price in EUR**, built dynamically from the database so it never drifts from what's on screen
+6. `BreadcrumbList` (services page) — scoped Domov → Storitve trail
+
+Every page also emits an accurate **canonical URL**, `hreflang` (`sl-SI` + `x-default`), Open Graph and Twitter card metadata with a 1200×630 preview image, and Slovenian + English keywords targeting local search.
 
 **After deploying**, complete these external steps:
 
-1. **Google Search Console** — verify domain and submit `/sitemap.xml`
+1. **Google Search Console** — verify the domain and submit `/sitemap.xml`
 2. **Google Business Profile** — claim the listing for Maps & local search
 3. **Directory listings** — register on Bizi.si, Najdi.si, and beauty directories
 
@@ -261,18 +243,35 @@ The app ships with production-ready SEO out of the box:
 
 ## Deployment
 
-### Web (Vercel)
+### Cloudflare Workers (OpenNext)
 
-The Next.js app deploys to [Vercel](https://vercel.com/) with zero configuration. Set the environment variables in your Vercel project settings.
+The app runs on [Cloudflare Workers](https://workers.cloudflare.com/), adapted from Next.js with the [OpenNext Cloudflare adapter](https://opennext.js.org/cloudflare). Config lives in `open-next.config.ts` and `wrangler.jsonc`.
 
-### WebSocket Server
+**One-time setup**
 
-The Rust WebSocket server can be deployed via:
+```bash
+npx wrangler login
+```
 
-- **[Shuttle](https://www.shuttle.dev/)** — `cd ws-server && cargo shuttle deploy`
-- **Docker** — a `Dockerfile` is provided in `ws-server/`
+**Environment variables** — set the server secrets on the Worker (these are *not* inlined at build time):
 
-Update `NEXT_PUBLIC_WS_URL` and `WS_BROADCAST_URL` in production to point to the deployed WebSocket server.
+```bash
+npx wrangler secret put TURSO_DATABASE_URL
+npx wrangler secret put TURSO_AUTH_TOKEN
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put RESEND_API_KEY
+```
+
+`NEXT_PUBLIC_BASE_URL` is a public, build-time value — set it in the build environment (or rely on the production default baked into `src/lib/site.ts`).
+
+**Preview & deploy**
+
+```bash
+npm run preview   # build + run the Workers bundle locally
+npm run deploy     # build + deploy to Cloudflare
+```
+
+The live deployment is served at **[lepotilnica.jaksicbojan1.workers.dev](https://lepotilnica.jaksicbojan1.workers.dev)**.
 
 ---
 

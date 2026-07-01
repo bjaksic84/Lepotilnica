@@ -1,15 +1,13 @@
 import type { MetadataRoute } from "next";
-import { db } from "@/db";
-import { services, categories } from "@/db/schema";
+import { SITE_URL } from "@/lib/site";
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://lepotilnica.si";
+export default function sitemap(): MetadataRoute.Sitemap {
+    const baseUrl = SITE_URL;
 
-    // Static pages
-    // Use deployment / build date instead of "right now" for stable lastModified
+    // Use a stable build date rather than "now" so lastModified doesn't churn.
     const buildDate = new Date("2026-02-28");
 
-    const staticPages: MetadataRoute.Sitemap = [
+    return [
         {
             url: baseUrl,
             lastModified: buildDate,
@@ -29,22 +27,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             priority: 0.8,
         },
     ];
-
-    // Dynamic: fetch all service categories for potential future category pages
-    try {
-        const allCategories = await db.select().from(categories);
-        const allServices = await db.select().from(services);
-
-        // If you later add individual service pages, uncomment:
-        // const servicePages = allServices.map((service) => ({
-        //     url: `${baseUrl}/services/${service.id}`,
-        //     lastModified: new Date(service.createdAt),
-        //     changeFrequency: "monthly" as const,
-        //     priority: 0.6,
-        // }));
-
-        return [...staticPages];
-    } catch {
-        return staticPages;
-    }
 }

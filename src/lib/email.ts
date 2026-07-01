@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { SITE_URL } from "@/lib/site";
 
 // Lazily construct the Resend client so importing this module is side-effect
 // free. `new Resend()` throws when RESEND_API_KEY is missing, which would break
@@ -45,8 +46,7 @@ function formatPrice(euros: number): string {
 }
 
 function getCancelUrl(token: string): string {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    return `${baseUrl}/cancel/${token}`;
+    return `${SITE_URL}/cancel/${token}`;
 }
 
 function buildConfirmationHtml(data: BookingEmailData): string {
@@ -98,7 +98,7 @@ function buildConfirmationHtml(data: BookingEmailData): string {
           <tr>
             <td style="background:linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 100%);padding:32px 40px;text-align:center;">
               <img
-                src="${process.env.NEXT_PUBLIC_BASE_URL || 'https://lepotilnica.si'}/logo.png"
+                src="${SITE_URL}/logo.png"
                 alt="Lepotilnica by Karin"
                 width="180"
                 style="height:auto;display:inline-block;max-width:180px;"

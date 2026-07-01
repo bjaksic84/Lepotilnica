@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { use } from "react";
+import Link from "next/link";
 
 interface CancelResult {
     success?: boolean;
@@ -83,12 +84,12 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
                                         <p className="mt-1">{result.booking.date} at {result.booking.time}</p>
                                     </div>
                                 )}
-                                <a
+                                <Link
                                     href="/"
                                     className="inline-block px-8 py-3 bg-charcoal text-porcelain rounded-full text-sm font-medium hover:bg-charcoal/90 transition-all"
                                 >
                                     Nazaj na domačo stran
-                                </a>
+                                </Link>
                             </>
                         ) : (
                             <>
@@ -103,12 +104,12 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
                                 <p className="text-charcoal/50 text-sm leading-relaxed mb-6">
                                     {result?.error || "Nekaj je šlo narobe."}
                                 </p>
-                                <a
+                                <Link
                                     href="/"
                                     className="inline-block px-8 py-3 bg-charcoal text-porcelain rounded-full text-sm font-medium hover:bg-charcoal/90 transition-all"
                                 >
                                     Nazaj na domačo stran
-                                </a>
+                                </Link>
                             </>
                         )}
                     </div>

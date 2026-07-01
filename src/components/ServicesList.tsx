@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
@@ -24,33 +24,34 @@ const imagePositions: Record<string, string> = {
     "pedikura-s-permanentnim-lakiranjem": "center 80%",
 };
 
-// Warm gradient fallbacks using the new palette
-const gradients = [
-    "from-dusty-rose/40 to-blush",
-    "from-blush to-porcelain",
-    "from-dusty-rose/30 to-porcelain",
-    "from-blush/60 to-dusty-rose/20",
-    "from-porcelain to-blush/40",
-    "from-dusty-rose/20 to-blush/50",
-];
+// Slovenian plural helper for the selection counter: [1, 2, 3–4, 5+/0]
+function selectedLabel(n: number): string {
+    const m = n % 100;
+    if (m === 1) return "izbrana";
+    return "izbranih";
+}
 
-export default function ServicesList({ categories }: { categories: CategoryWithServices[] }) {
-    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+export default function ServicesList({
+    categories,
+    initialSelectedIds = [],
+}: {
+    categories: CategoryWithServices[];
+    // Pre-selected services when the user returns from the booking flow
+    // (back arrow on booking step 2 sends them here as /services?selected=1,2).
+    initialSelectedIds?: number[];
+}) {
+    const [selectedIds, setSelectedIds] = useState<number[]>(initialSelectedIds);
     const [modalService, setModalService] = useState<Service | null>(null);
-    const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
+    const [activeCat, setActiveCat] = useState<number | null>(null);
 
-    const toggleDescription = useCallback((catId: number) => {
-        setExpandedDescriptions((prev) => {
-            const next = new Set(prev);
-            if (next.has(catId)) next.delete(catId);
-            else next.add(catId);
-            return next;
-        });
-    }, []);
+    const visibleCategories = useMemo(
+        () => categories.filter((c) => c.services.length > 0),
+        [categories]
+    );
 
     const allServices = useMemo(
-        () => categories.flatMap((c) => c.services),
-        [categories]
+        () => visibleCategories.flatMap((c) => c.services),
+        [visibleCategories]
     );
 
     const selectedServices = useMemo(
@@ -68,231 +69,186 @@ export default function ServicesList({ categories }: { categories: CategoryWithS
         [selectedServices]
     );
 
-    const toggleService = (id: number) => {
+    const toggleService = useCallback((id: number) => {
         setSelectedIds((prev) =>
             prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
         );
-    };
+    }, []);
 
-    const scrollToCategory = (catId: number) => {
+    // Keep the URL's ?selected= param in sync with the live selection, so a manual
+    // refresh restores exactly what's selected now — and a manual removal actually
+    // sticks. Uses history.replaceState to avoid a server round-trip on each toggle.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (selectedIds.length > 0) params.set("selected", selectedIds.join(","));
+        else params.delete("selected");
+        const qs = params.toString();
+        window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+    }, [selectedIds]);
+
+    const scrollToCategory = useCallback((catId: number) => {
         const el = document.getElementById(`category-${catId}`);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
+    }, []);
 
-    const visibleCategories = categories.filter((c) => c.services.length > 0);
+    // ── Scroll-spy: highlight the category currently in view ──
+    const navRef = useRef<HTMLDivElement>(null);
+    const pillRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+
+    useEffect(() => {
+        if (visibleCategories.length < 2) return;
+        const setActive = () => {
+            let current = visibleCategories[0].id;
+            for (const cat of visibleCategories) {
+                const el = document.getElementById(`category-${cat.id}`);
+                if (el && el.getBoundingClientRect().top - 160 <= 0) current = cat.id;
+            }
+            setActiveCat(current);
+        };
+        setActive();
+        window.addEventListener("scroll", setActive, { passive: true });
+        return () => window.removeEventListener("scroll", setActive);
+    }, [visibleCategories]);
+
+    // Keep the active pill scrolled into view within the horizontal nav
+    useEffect(() => {
+        if (activeCat == null) return;
+        const pill = pillRefs.current.get(activeCat);
+        const nav = navRef.current;
+        if (!pill || !nav) return;
+        const pl = pill.offsetLeft;
+        const pr = pl + pill.offsetWidth;
+        if (pl < nav.scrollLeft || pr > nav.scrollLeft + nav.clientWidth) {
+            nav.scrollTo({ left: Math.max(0, pl - 20), behavior: "smooth" });
+        }
+    }, [activeCat]);
 
     return (
         <>
-        <section className="container mx-auto px-4 max-w-7xl space-y-8">
-            {/* ── Category Navigation Buttons ── */}
+            {/* ── Sticky Category Navigation ── */}
             {visibleCategories.length > 1 && (
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="flex flex-wrap items-center justify-center gap-2"
-                >
-                    {visibleCategories.map((cat) => (
-                        <button
-                            key={cat.id}
-                            onClick={() => scrollToCategory(cat.id)}
-                            className="px-5 py-2.5 rounded-full border border-dusty-rose/30 bg-porcelain text-charcoal text-sm font-medium hover:bg-blush hover:border-gold/40 hover:text-gold-dark transition-all shadow-sm hover:shadow-md"
-                        >
-                            {cat.name}
-                        </button>
-                    ))}
-                </motion.div>
-            )}
-
-            {visibleCategories.map((category, catIndex) => (
-                <motion.div
-                    key={category.id}
-                    id={`category-${category.id}`}
-                    initial={{ opacity: 0, y: 40 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.7, delay: catIndex * 0.1 }}
-                    className="scroll-mt-32"
-                >
-                    {/* Category Header */}
-                    <div className="mb-8 md:mb-12">
-                        <div className="w-8 h-px bg-gold mb-4" />
-                        <h2 className="text-4xl md:text-5xl font-playfair font-bold text-charcoal mb-3">
-                            {category.name}
-                        </h2>
-                        {category.description && (
-                            <>
-                                {/* Desktop: always visible */}
-                                <p className="hidden md:block text-charcoal/50 text-lg font-light max-w-5xl leading-relaxed">
-                                    {category.description}
-                                </p>
-                                {/* Mobile: collapsible */}
-                                <div className="md:hidden">
-                                    <AnimatePresence initial={false}>
-                                        {expandedDescriptions.has(category.id) && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: "auto", opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                transition={{ duration: 0.25, ease: "easeInOut" }}
-                                                className="overflow-hidden"
-                                            >
-                                                <p className="text-charcoal/50 text-sm font-light leading-relaxed pb-2">
-                                                    {category.description}
-                                                </p>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                    <button
-                                        onClick={() => toggleDescription(category.id)}
-                                        className="flex items-center gap-1.5 text-xs font-medium text-gold hover:text-gold-dark transition-colors mt-1"
-                                    >
-                                        <span className="w-5 h-5 rounded-full border border-gold/40 flex items-center justify-center">
-                                            {expandedDescriptions.has(category.id) ? (
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
-                                            ) : (
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                                            )}
-                                        </span>
-                                        {expandedDescriptions.has(category.id) ? "Skrij opis" : "Prikaži opis"}
-                                    </button>
-                                </div>
-                            </>
-                        )}
-                    </div>
-
-                    {/* Services Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-                        {category.services.map((service, sIndex) => {
-                            const isSelected = selectedIds.includes(service.id);
-                            const selectionIndex = selectedIds.indexOf(service.id);
+                <div className="sticky top-[68px] z-30 -mt-2 mb-8 bg-porcelain/85 backdrop-blur-md border-y border-dusty-rose/40">
+                    <div
+                        ref={navRef}
+                        className="menuscroll flex gap-2 overflow-x-auto container mx-auto max-w-7xl px-4 py-3.5"
+                    >
+                        {visibleCategories.map((cat) => {
+                            const isActive = activeCat === cat.id;
                             return (
-                                <motion.div
-                                    key={service.id}
-                                    initial={{ opacity: 0, y: 30 }}
-                                    whileInView={{ opacity: 1, y: 0 }}
-                                    viewport={{ once: true }}
-                                    transition={{ duration: 0.6, delay: sIndex * 0.08 }}
-                                    whileHover={{ y: -6 }}
-                                    onClick={() => setModalService(service)}
-                                    className={`bg-porcelain rounded-xl md:rounded-2xl overflow-hidden border shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col cursor-pointer ${
-                                        isSelected
-                                            ? "border-gold ring-2 ring-gold/20"
-                                            : "border-dusty-rose/30"
+                                <button
+                                    key={cat.id}
+                                    ref={(el) => {
+                                        if (el) pillRefs.current.set(cat.id, el);
+                                        else pillRefs.current.delete(cat.id);
+                                    }}
+                                    onClick={() => scrollToCategory(cat.id)}
+                                    className={`flex-none px-4 py-2 rounded-full border text-sm font-medium whitespace-nowrap transition-all ${
+                                        isActive
+                                            ? "bg-charcoal text-porcelain border-charcoal shadow-sm"
+                                            : "bg-porcelain text-charcoal border-dusty-rose/60 hover:border-gold/50 hover:text-gold-dark"
                                     }`}
                                 >
-                                    {/* Image area — hidden on mobile */}
-                                    <div className={`relative h-48 bg-gradient-to-br ${gradients[sIndex % gradients.length]} overflow-hidden hidden md:block`}>
-                                        <Image
-                                            src={getServiceImage(service.name)}
-                                            alt={`${service.name} — lepotni tretma v Lepotilnici by Karin`}
-                                            fill
-                                            className="object-cover group-hover:scale-105 transition-transform duration-500"
-                                            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                                            style={{ objectPosition: imagePositions[getServiceSlug(service.name)] || "center" }}
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).style.display = 'none';
-                                            }}
-                                        />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-charcoal/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                        
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className="text-6xl font-playfair text-charcoal/5 font-bold select-none">
-                                                {service.name.charAt(0)}
-                                            </span>
-                                        </div>
-
-                                        {/* Selection badge */}
-                                        {isSelected && (
-                                            <span className="absolute top-3 left-3 px-2.5 py-1 bg-gold text-charcoal text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg flex items-center gap-1">
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                #{selectionIndex + 1}
-                                            </span>
-                                        )}
-
-                                        {service.isPopular && (
-                                            <span className="absolute top-3 right-3 px-3 py-1 bg-gold text-charcoal text-[10px] font-bold uppercase tracking-wider rounded-full shadow-lg">
-                                                Popularno
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="p-3 md:p-6 flex flex-col flex-1">
-                                        {/* Mobile-only: selection badge + popular tag */}
-                                        <div className="flex items-center gap-1.5 mb-1.5 md:hidden flex-wrap">
-                                            {isSelected && (
-                                                <span className="px-1.5 py-0.5 bg-gold text-charcoal text-[9px] font-bold uppercase tracking-wider rounded-full flex items-center gap-0.5">
-                                                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                    #{selectionIndex + 1}
-                                                </span>
-                                            )}
-                                            {service.isPopular && (
-                                                <span className="px-1.5 py-0.5 bg-gold text-charcoal text-[9px] font-bold uppercase tracking-wider rounded-full">
-                                                    Popularno
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        <h3 className="text-sm md:text-xl font-playfair font-bold text-charcoal group-hover:text-gold-dark transition-colors mb-1 md:mb-2 line-clamp-2">
-                                            {service.name}
-                                        </h3>
-
-                                        {service.description && (
-                                            <p className="text-charcoal/50 text-xs md:text-sm leading-relaxed mb-2 md:mb-4 line-clamp-1 md:line-clamp-2 hidden md:block">
-                                                {service.description}
-                                            </p>
-                                        )}
-
-                                        <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs text-charcoal/40 mb-3 md:mb-6 mt-auto">
-                                            <svg className="w-3 h-3 md:w-3.5 md:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                            {service.duration} min
-                                        </div>
-
-                                        <div className="flex items-end justify-between pt-2 md:pt-4 border-t border-dusty-rose/30">
-                                            <div>
-                                                <span className="text-[9px] md:text-[10px] text-charcoal/40 uppercase tracking-widest font-semibold block">
-                                                    Za
-                                                </span>
-                                                <span className="text-lg md:text-2xl font-playfair font-bold text-charcoal">
-                                                    €{service.price}
-                                                </span>
-                                            </div>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); toggleService(service.id); }}
-                                                className={`w-9 h-9 md:w-11 md:h-11 rounded-full flex items-center justify-center transition-all shadow-lg ${
-                                                    isSelected
-                                                        ? "bg-gold text-charcoal hover:bg-gold-light"
-                                                        : "bg-charcoal text-porcelain group-hover:bg-gold"
-                                                }`}
-                                                aria-label={isSelected ? `Remove ${service.name}` : `Add ${service.name}`}
-                                            >
-                                                {isSelected ? (
-                                                    <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                ) : (
-                                                    <svg className="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                                    </svg>
-                                                )}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </motion.div>
+                                    {cat.name}
+                                </button>
                             );
                         })}
                     </div>
-                </motion.div>
-            ))}
+                </div>
+            )}
 
-        </section>
+            {/* ── Category Sections ── */}
+            <section className="container mx-auto px-4 max-w-7xl">
+                {visibleCategories.map((category, catIndex) => (
+                    <motion.div
+                        key={category.id}
+                        id={`category-${category.id}`}
+                        initial={{ opacity: 0, y: 30 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: "-80px" }}
+                        transition={{ duration: 0.6 }}
+                        className="grid md:grid-cols-[280px_1fr] gap-6 md:gap-11 items-start py-8 md:py-12 border-b border-dusty-rose/40 scroll-mt-[150px]"
+                    >
+                        {/* Category header — sticky on desktop */}
+                        <div className="md:sticky md:top-[150px]">
+                            <div className="font-playfair font-bold leading-none text-gold/25 text-5xl md:text-6xl">
+                                {String(catIndex + 1).padStart(2, "0")}
+                            </div>
+                            <div className="w-8 h-0.5 bg-gold my-3 md:my-4" />
+                            <h2 className="text-3xl md:text-4xl font-playfair font-bold text-charcoal mb-3 leading-[1.05]">
+                                {category.name}
+                            </h2>
+                            {category.description && (
+                                <p className="text-charcoal/55 text-sm font-light leading-relaxed mb-4 max-w-md">
+                                    {category.description}
+                                </p>
+                            )}
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-dark">
+                                {category.services.length} storitev
+                            </div>
+                        </div>
 
-            {/* ── Floating Selection Bar (portal-level, outside section to avoid overflow clipping) ── */}
+                        {/* Service rows */}
+                        <div>
+                            {category.services.map((service) => {
+                                const isSelected = selectedIds.includes(service.id);
+                                return (
+                                    <div
+                                        key={service.id}
+                                        onClick={() => setModalService(service)}
+                                        className="group flex items-center gap-1.5 px-2 md:px-3 py-3.5 rounded-xl cursor-pointer transition-colors hover:bg-dusty-rose/20"
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="text-[15px] md:text-base text-charcoal group-hover:text-gold-dark transition-colors">
+                                                    {service.name}
+                                                </span>
+                                                {service.isPopular && (
+                                                    <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-gold-dark border border-gold/50 px-1.5 py-0.5 rounded-full">
+                                                        Popularno
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-xs text-charcoal/40 mt-1.5">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                {service.duration} min
+                                            </div>
+                                        </div>
+
+                                        {/* Dotted leader — desktop only */}
+                                        <span className="hidden md:block flex-1 border-b border-dotted border-charcoal/25 translate-y-[6px] mx-2" />
+
+                                        <span className="font-playfair font-bold text-lg md:text-xl text-charcoal whitespace-nowrap">
+                                            €{service.price}
+                                        </span>
+
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); toggleService(service.id); }}
+                                            className={`ml-2 w-9 h-9 shrink-0 rounded-full flex items-center justify-center transition-all shadow-sm hover:scale-110 ${
+                                                isSelected
+                                                    ? "bg-gold text-charcoal"
+                                                    : "bg-charcoal text-porcelain group-hover:bg-gold group-hover:text-charcoal"
+                                            }`}
+                                            aria-label={isSelected ? `Odstrani ${service.name}` : `Dodaj ${service.name}`}
+                                        >
+                                            {isSelected ? (
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                </svg>
+                                            )}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
+                ))}
+            </section>
+
+            {/* ── Floating Selection Bar ── */}
             <AnimatePresence>
                 {selectedIds.length > 0 && (
                     <motion.div
@@ -302,32 +258,22 @@ export default function ServicesList({ categories }: { categories: CategoryWithS
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
                         className="fixed inset-x-0 bottom-0 z-50 p-3 sm:p-4 pointer-events-none"
                     >
-                        <div className="pointer-events-auto mx-auto max-w-lg bg-charcoal text-porcelain rounded-2xl px-4 py-3 sm:px-6 sm:py-4 shadow-2xl border border-porcelain/10">
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-semibold truncate">
-                                        {selectedIds.length} {selectedIds.length === 1 ? "storitev izbrana" : selectedIds.length <= 4 ? "storitve izbrane" : "storitev izbranih"}
-                                    </p>
-                                    <p className="text-xs text-porcelain/50">
-                                        €{totalPrice} · {totalDuration} min
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => setSelectedIds([])}
-                                    className="p-2 rounded-full hover:bg-porcelain/10 transition-colors text-porcelain/50 hover:text-porcelain shrink-0"
-                                    aria-label="Clear selection"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                                <Link
-                                    href={`/book?services=${selectedIds.join(",")}`}
-                                    className="shrink-0 px-5 py-2.5 bg-gold text-charcoal rounded-full font-bold text-sm hover:bg-gold-light transition-all shadow-lg whitespace-nowrap"
-                                >
-                                    Rezerviraj →
-                                </Link>
-                            </div>
+                        <div className="pointer-events-auto mx-auto w-fit max-w-[calc(100vw-32px)] flex items-center gap-3 sm:gap-4 bg-charcoal text-porcelain rounded-full pl-5 pr-2 py-2 shadow-2xl border border-gold/30">
+                            <span className="text-sm font-semibold truncate">
+                                {selectedIds.length} {selectedLabel(selectedIds.length)} · €{totalPrice} · {totalDuration} min
+                            </span>
+                            <button
+                                onClick={() => setSelectedIds([])}
+                                className="text-sm text-porcelain/60 hover:text-porcelain transition-colors shrink-0"
+                            >
+                                Počisti
+                            </button>
+                            <Link
+                                href={`/book?services=${selectedIds.join(",")}`}
+                                className="shrink-0 px-5 py-2.5 bg-gold text-charcoal rounded-full font-bold text-sm hover:bg-gold-light transition-all shadow-lg whitespace-nowrap"
+                            >
+                                Rezerviraj →
+                            </Link>
                         </div>
                     </motion.div>
                 )}
@@ -378,7 +324,7 @@ export default function ServicesList({ categories }: { categories: CategoryWithS
                                 <button
                                     onClick={() => setModalService(null)}
                                     className="absolute top-3 left-3 w-8 h-8 bg-charcoal/60 backdrop-blur-sm rounded-full flex items-center justify-center text-porcelain hover:bg-charcoal/80 transition-colors"
-                                    aria-label="Close"
+                                    aria-label="Zapri"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

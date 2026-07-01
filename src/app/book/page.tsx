@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, Suspense, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { format, isSameDay } from "date-fns";
 import { sl } from "date-fns/locale";
@@ -38,6 +38,33 @@ const STEP_CONFIG: { key: Step; label: string }[] = [
     { key: "details", label: "Podatki" },
 ];
 
+// Full linear order used for navigation math.
+const STEP_ORDER: Step[] = ["service", "date", "time", "details", "confirmation"];
+
+// Persist in-progress bookings so a reload / accidental navigation doesn't lose work.
+const BOOKING_STORAGE_KEY = "lepotilnica:booking:v1";
+const STORAGE_MAX_AGE_MS = 1000 * 60 * 60 * 24; // Ignore progress older than 24h
+
+type SavedProgress = {
+    selectedServiceIds?: number[];
+    selectedDate?: string | null; // yyyy-MM-dd
+    selectedTime?: string | null;
+    name?: string;
+    email?: string;
+    phone?: string;
+    notes?: string;
+    step?: Step;
+    fromServices?: boolean;
+    savedAt?: number;
+};
+
+function sameIdSet(a: number[] | undefined, b: number[]): boolean {
+    if (!a || a.length !== b.length) return false;
+    const sa = [...a].sort((x, y) => x - y);
+    const sb = [...b].sort((x, y) => x - y);
+    return sa.every((v, i) => v === sb[i]);
+}
+
 /* ─── Animation Variants ─────────────────────────────── */
 
 const stepVariants = {
@@ -67,11 +94,15 @@ function BookingContent() {
         }
         return { preServiceIds: [] as number[], skipServiceStep: false };
     }, [searchParams]);
-    const hasPreSelected = preServiceIds.length > 0;
 
     /* ── State ──────────────── */
     const [step, setStep] = useState<Step>(skipServiceStep ? "date" : "service");
     const [direction, setDirection] = useState(0);
+    // Whether the flow started from the services page (no in-flow service step).
+    // Seeded from the URL but may be restored from saved progress.
+    const [fromServices, setFromServices] = useState(skipServiceStep);
+    // Gate the flow until we've attempted to restore saved progress (avoids flashes).
+    const [hydrated, setHydrated] = useState(false);
 
     // Booking selections
     const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>(preServiceIds);
@@ -90,6 +121,11 @@ function BookingContent() {
     const [loadingServices, setLoadingServices] = useState(true);
     const [loadingSlots, setLoadingSlots] = useState(false);
 
+    // Step-1 category quick-jump (mirrors the services page pills)
+    const bookNavRef = useRef<HTMLDivElement>(null);
+    const bookPillRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+    const [activeBookCat, setActiveBookCat] = useState<number | null>(null);
+
     // Validation
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -98,6 +134,11 @@ function BookingContent() {
     /* ── Computed ───────────── */
     const allServices = useMemo(
         () => categories.flatMap((c) => c.services),
+        [categories]
+    );
+    // Categories that actually have services — drives the step-1 quick-jump nav.
+    const visibleBookCategories = useMemo(
+        () => categories.filter((c) => c.services.length > 0),
         [categories]
     );
     const selectedServices = useMemo(
@@ -119,6 +160,22 @@ function BookingContent() {
         return generateSlotsForDateStr(format(selectedDate, "yyyy-MM-dd"));
     }, [selectedDate]);
 
+    // Slots we actually render on the time step: drop already-passed times for
+    // today, so the grid only ever contains slots the legend describes
+    // (Prosto / Zasedeno) — no ambiguous struck-through "past" tiles.
+    const visibleSlots = useMemo(() => {
+        if (!selectedDate) return [];
+        if (!isSameDay(selectedDate, new Date())) return daySlots;
+        const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+        return daySlots.filter((t) => timeToMinutes(t) > nowMin);
+    }, [daySlots, selectedDate]);
+
+    // How many of the visible slots are actually bookable (rest are Zasedeno).
+    const bookableVisibleCount = useMemo(
+        () => visibleSlots.filter((t) => availableSlots.includes(t)).length,
+        [visibleSlots, availableSlots]
+    );
+
     // Compute each service's start time given the selected start time
     const getServiceTime = useCallback(
         (index: number): string => {
@@ -135,14 +192,14 @@ function BookingContent() {
     // Dynamic step sequence (skip service step only if came from services page with valid selections)
     const stepSequence: Step[] = useMemo(() => {
         if (
-            skipServiceStep &&
+            fromServices &&
             selectedServiceIds.length > 0 &&
             selectedServiceIds.every((id) => allServices.some((s) => s.id === id))
         ) {
             return ["date", "time", "details"];
         }
         return ["service", "date", "time", "details"];
-    }, [skipServiceStep, selectedServiceIds, allServices]);
+    }, [fromServices, selectedServiceIds, allServices]);
 
     /* ── Effects ────────────── */
 
@@ -155,20 +212,21 @@ function BookingContent() {
             .finally(() => setLoadingServices(false));
     }, []);
 
-    // Validate pre-selected service once services load
+    // Validate selected services once the catalogue loads.
+    // Covers both URL params and restored progress — drops any stale IDs.
     useEffect(() => {
-        if (hasPreSelected && !loadingServices && allServices.length > 0) {
-            const validIds = selectedServiceIds.filter((id) =>
-                allServices.some((s) => s.id === id)
-            );
-            if (validIds.length === 0) {
-                setSelectedServiceIds([]);
-                setStep("service");
-            } else if (validIds.length !== selectedServiceIds.length) {
-                setSelectedServiceIds(validIds);
-            }
+        if (loadingServices || allServices.length === 0 || selectedServiceIds.length === 0) return;
+        const validIds = selectedServiceIds.filter((id) =>
+            allServices.some((s) => s.id === id)
+        );
+        if (validIds.length === 0) {
+            setSelectedServiceIds([]);
+            setFromServices(false);
+            setStep("service");
+        } else if (validIds.length !== selectedServiceIds.length) {
+            setSelectedServiceIds(validIds);
         }
-    }, [loadingServices, allServices, hasPreSelected, selectedServiceIds]);
+    }, [loadingServices, allServices, selectedServiceIds]);
 
     // Fetch availability when date or services change
     useEffect(() => {
@@ -183,18 +241,180 @@ function BookingContent() {
             .finally(() => setLoadingSlots(false));
     }, [selectedDate, totalDuration, selectedServices.length]);
 
+    // Restore saved progress on mount (client-only, so no hydration mismatch).
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(BOOKING_STORAGE_KEY);
+            const saved: SavedProgress | null = raw ? JSON.parse(raw) : null;
+            const fresh =
+                saved && (!saved.savedAt || Date.now() - saved.savedAt < STORAGE_MAX_AGE_MS)
+                    ? saved
+                    : null;
+
+            const hasServicesParam = !!searchParams.get("services");
+            const hasSingleParam = !!searchParams.get("service");
+
+            // Apply saved progress when it's the same booking continuing:
+            // - `?services=` present → only if it matches the saved selection
+            // - no service params → restore in full
+            const shouldApply =
+                !!fresh &&
+                ((hasServicesParam && sameIdSet(fresh.selectedServiceIds, preServiceIds)) ||
+                    (!hasServicesParam && !hasSingleParam));
+
+            if (shouldApply && fresh) {
+                if (Array.isArray(fresh.selectedServiceIds)) {
+                    setSelectedServiceIds(fresh.selectedServiceIds);
+                }
+
+                // Drop a saved date that's now in the past (and its time).
+                let restoredDate: Date | null = null;
+                if (fresh.selectedDate) {
+                    const parsed = new Date(`${fresh.selectedDate}T00:00:00`);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    if (!isNaN(parsed.getTime()) && parsed >= today) restoredDate = parsed;
+                }
+                setSelectedDate(restoredDate);
+                setSelectedTime(restoredDate ? fresh.selectedTime ?? null : null);
+
+                if (typeof fresh.name === "string") setName(fresh.name);
+                if (typeof fresh.email === "string") setEmail(fresh.email);
+                if (typeof fresh.phone === "string") setPhone(fresh.phone);
+                if (typeof fresh.notes === "string") setNotes(fresh.notes);
+
+                const restoredFromServices =
+                    typeof fresh.fromServices === "boolean" ? fresh.fromServices : skipServiceStep;
+                setFromServices(restoredFromServices);
+
+                // Land on the furthest step the restored data supports, but never past
+                // where the user had actually progressed (nor straight to confirmation).
+                const hasServices = (fresh.selectedServiceIds?.length ?? 0) > 0;
+                let reachable: Step;
+                if (!hasServices) reachable = restoredFromServices ? "date" : "service";
+                else if (!restoredDate) reachable = "date";
+                else if (!fresh.selectedTime) reachable = "time";
+                else reachable = "details";
+
+                const savedPos = fresh.step ? STEP_ORDER.indexOf(fresh.step) : 0;
+                const reachablePos = STEP_ORDER.indexOf(reachable);
+                let targetPos = Math.min(savedPos >= 0 ? savedPos : 0, reachablePos);
+                if (STEP_ORDER[targetPos] === "confirmation") targetPos = STEP_ORDER.indexOf("details");
+                let target = STEP_ORDER[targetPos];
+                if (restoredFromServices && target === "service") target = "date";
+                setStep(target);
+            }
+        } catch {
+            // Corrupt/unavailable storage — start fresh.
+        }
+        setHydrated(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Persist progress whenever it changes (post-hydration, excluding the terminal step).
+    useEffect(() => {
+        if (!hydrated || step === "confirmation") return;
+        try {
+            const payload: SavedProgress = {
+                selectedServiceIds,
+                selectedDate: selectedDate ? format(selectedDate, "yyyy-MM-dd") : null,
+                selectedTime,
+                name,
+                email,
+                phone,
+                notes,
+                step,
+                fromServices,
+                savedAt: Date.now(),
+            };
+            localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(payload));
+        } catch {
+            // Storage may be unavailable (private mode) — ignore.
+        }
+    }, [hydrated, selectedServiceIds, selectedDate, selectedTime, name, email, phone, notes, step, fromServices]);
+
+    const clearSavedProgress = useCallback(() => {
+        try {
+            localStorage.removeItem(BOOKING_STORAGE_KEY);
+        } catch {
+            // ignore
+        }
+    }, []);
+
+    const scrollToBookCategory = useCallback((catId: number) => {
+        const el = document.getElementById(`book-cat-${catId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, []);
+
+    // Scroll-spy: highlight the category currently in view on the service step.
+    useEffect(() => {
+        if (step !== "service" || visibleBookCategories.length < 2) return;
+        const setActive = () => {
+            let current = visibleBookCategories[0].id;
+            for (const cat of visibleBookCategories) {
+                const el = document.getElementById(`book-cat-${cat.id}`);
+                if (el && el.getBoundingClientRect().top - 200 <= 0) current = cat.id;
+            }
+            setActiveBookCat(current);
+        };
+        setActive();
+        window.addEventListener("scroll", setActive, { passive: true });
+        return () => window.removeEventListener("scroll", setActive);
+    }, [step, visibleBookCategories]);
+
+    // Keep the active pill within view in the horizontal nav.
+    useEffect(() => {
+        if (activeBookCat == null) return;
+        const pill = bookPillRefs.current.get(activeBookCat);
+        const nav = bookNavRef.current;
+        if (!pill || !nav) return;
+        const pl = pill.offsetLeft;
+        const pr = pl + pill.offsetWidth;
+        if (pl < nav.scrollLeft || pr > nav.scrollLeft + nav.clientWidth) {
+            nav.scrollTo({ left: Math.max(0, pl - 20), behavior: "smooth" });
+        }
+    }, [activeBookCat]);
+
     /* ── Navigation ─────────── */
     const goTo = (target: Step) => {
-        const order: Step[] = ["service", "date", "time", "details", "confirmation"];
-        const curr = order.indexOf(step);
-        const next = order.indexOf(target);
+        const curr = STEP_ORDER.indexOf(step);
+        const next = STEP_ORDER.indexOf(target);
         setDirection(next > curr ? 1 : -1);
         setStep(target);
     };
 
+    // Return to the services page, keeping the current selection highlighted there.
+    const backToServices = () => {
+        const qs = selectedServiceIds.length ? `?selected=${selectedServiceIds.join(",")}` : "";
+        router.push(`/services${qs}`);
+    };
+
     const goBack = () => {
         const idx = stepSequence.indexOf(step);
-        if (idx > 0) goTo(stepSequence[idx - 1]);
+        if (idx > 0) {
+            goTo(stepSequence[idx - 1]);
+            return;
+        }
+        // At the first in-flow step: if we came from the services page, go back there.
+        if (fromServices) backToServices();
+    };
+
+    // Whether an earlier step can be reached directly (for progress bar / summary chips).
+    const canJump = (target: Step) => {
+        if (target === step) return false;
+        if (target === "service" && fromServices) return true; // proxy for the services page
+        const ti = stepSequence.indexOf(target);
+        const ci = stepSequence.indexOf(step);
+        return ti !== -1 && ci !== -1 && ti < ci;
+    };
+
+    const jumpToStep = (target: Step) => {
+        if (!canJump(target)) return;
+        if (target === "service" && fromServices) {
+            backToServices();
+            return;
+        }
+        goTo(target);
     };
 
     /* ── Step Handlers ──────── */
@@ -314,6 +534,7 @@ function BookingContent() {
                 body: JSON.stringify(payload),
             });
             if (res.ok) {
+                clearSavedProgress();
                 goTo("confirmation");
             } else {
                 const data = await res.json();
@@ -345,6 +566,15 @@ function BookingContent() {
     /* ══ RENDER ════════════════════════════════════════  */
     /* ═══════════════════════════════════════════════════ */
 
+    // Hold rendering until saved progress has been restored, to avoid a step flash.
+    if (!hydrated) {
+        return (
+            <div className="min-h-screen bg-gradient-to-b from-blush/30 to-porcelain flex items-center justify-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-2 border-gold/30 border-t-gold" />
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen pt-28 pb-20 bg-gradient-to-b from-blush/30 via-porcelain to-porcelain selection:bg-dusty-rose/40">
             {/* Background blobs */}
@@ -374,9 +604,18 @@ function BookingContent() {
                         {STEP_CONFIG.map((s, i) => {
                             const done = isStepDone(s.key);
                             const current = step === s.key;
+                            const clickable = canJump(s.key);
                             return (
                                 <div key={s.key} className="flex items-center">
-                                    <div className="flex flex-col items-center gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => jumpToStep(s.key)}
+                                        disabled={!clickable}
+                                        aria-label={clickable ? `Nazaj na korak: ${s.label}` : s.label}
+                                        className={`group flex flex-col items-center gap-1.5 ${
+                                            clickable ? "cursor-pointer" : "cursor-default"
+                                        }`}
+                                    >
                                         <motion.div
                                             animate={{
                                                 scale: current ? 1.15 : 1,
@@ -387,7 +626,9 @@ function BookingContent() {
                                                         : "#F2E6E6",
                                             }}
                                             transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                            className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold"
+                                            className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ring-2 ring-transparent transition-shadow ${
+                                                clickable ? "group-hover:ring-gold/40" : ""
+                                            }`}
                                         >
                                             {done && !current ? (
                                                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -400,13 +641,17 @@ function BookingContent() {
                                             )}
                                         </motion.div>
                                         <span
-                                            className={`text-[10px] font-semibold tracking-wide uppercase ${
-                                                current ? "text-charcoal" : done ? "text-green-600" : "text-charcoal/40"
-                                            }`}
+                                            className={`text-[10px] font-semibold tracking-wide uppercase transition-colors ${
+                                                current
+                                                    ? "text-charcoal"
+                                                    : done
+                                                        ? "text-green-600"
+                                                        : "text-charcoal/40"
+                                            } ${clickable ? "group-hover:text-gold-dark" : ""}`}
                                         >
                                             {s.label}
                                         </span>
-                                    </div>
+                                    </button>
                                     {i < STEP_CONFIG.length - 1 && (
                                         <div
                                             className={`w-10 sm:w-16 h-[2px] mx-1 sm:mx-2 mb-5 rounded-full transition-colors duration-300 ${
@@ -428,25 +673,49 @@ function BookingContent() {
                         className="flex flex-wrap items-center justify-center gap-2 mb-8"
                     >
                         {selectedServices.length > 0 && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm">
+                            <button
+                                type="button"
+                                onClick={() => jumpToStep("service")}
+                                disabled={!canJump("service")}
+                                title={canJump("service") ? "Uredi izbrane storitve" : undefined}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm transition-colors ${
+                                    canJump("service") ? "cursor-pointer hover:border-gold/50 hover:text-gold-dark" : "cursor-default"
+                                }`}
+                            >
                                 <span className="w-1.5 h-1.5 rounded-full bg-gold" />
                                 {selectedServices.length === 1
                                     ? `${selectedServices[0].name} · €${selectedServices[0].price}`
                                     : selectedServices.length === 2 || selectedServices.length === 3 || selectedServices.length === 4 ? `${selectedServices.length} storitve · €${totalPrice}` : `${selectedServices.length} storitev · €${totalPrice}`
                                 }
-                            </span>
+                            </button>
                         )}
                         {selectedDate && step !== "date" && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm">
+                            <button
+                                type="button"
+                                onClick={() => jumpToStep("date")}
+                                disabled={!canJump("date")}
+                                title={canJump("date") ? "Spremeni datum" : undefined}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm transition-colors ${
+                                    canJump("date") ? "cursor-pointer hover:border-gold/50 hover:text-gold-dark" : "cursor-default"
+                                }`}
+                            >
                                 <span className="w-1.5 h-1.5 rounded-full bg-dusty-rose" />
                                 {format(selectedDate, "EEE, d. MMM", { locale: sl })}
-                            </span>
+                            </button>
                         )}
                         {selectedTime && step !== "time" && step !== "date" && (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm">
+                            <button
+                                type="button"
+                                onClick={() => jumpToStep("time")}
+                                disabled={!canJump("time")}
+                                title={canJump("time") ? "Spremeni uro" : undefined}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 bg-porcelain rounded-full text-xs font-medium text-charcoal border border-dusty-rose/30 shadow-sm transition-colors ${
+                                    canJump("time") ? "cursor-pointer hover:border-gold/50 hover:text-gold-dark" : "cursor-default"
+                                }`}
+                            >
                                 <span className="w-1.5 h-1.5 rounded-full bg-charcoal/40" />
                                 {selectedTime}
-                            </span>
+                            </button>
                         )}
                     </motion.div>
                 )}
@@ -482,11 +751,40 @@ function BookingContent() {
                                     </div>
                                 ) : (
                                     <div className="space-y-10">
-                                        {categories.map((cat) => {
-                                            if (cat.services.length === 0) return null;
+                                        {visibleBookCategories.length > 1 && (
+                                            <div className="sticky top-[72px] z-30 -mx-4 px-4 bg-porcelain/85 backdrop-blur-md border-y border-dusty-rose/30">
+                                                <div
+                                                    ref={bookNavRef}
+                                                    className="menuscroll flex gap-2 overflow-x-auto py-3"
+                                                >
+                                                    {visibleBookCategories.map((cat) => {
+                                                        const isActive = activeBookCat === cat.id;
+                                                        return (
+                                                            <button
+                                                                key={cat.id}
+                                                                type="button"
+                                                                ref={(el) => {
+                                                                    if (el) bookPillRefs.current.set(cat.id, el);
+                                                                    else bookPillRefs.current.delete(cat.id);
+                                                                }}
+                                                                onClick={() => scrollToBookCategory(cat.id)}
+                                                                className={`flex-none px-3.5 py-1.5 rounded-full border text-xs font-medium whitespace-nowrap transition-all ${
+                                                                    isActive
+                                                                        ? "bg-charcoal text-porcelain border-charcoal shadow-sm"
+                                                                        : "bg-porcelain text-charcoal border-dusty-rose/50 hover:border-gold/50 hover:text-gold-dark"
+                                                                }`}
+                                                            >
+                                                                {cat.name}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {visibleBookCategories.map((cat) => {
                                             return (
-                                                <div key={cat.id}>
-                                                    {categories.length > 1 && (
+                                                <div key={cat.id} id={`book-cat-${cat.id}`} className="scroll-mt-[132px]">
+                                                    {visibleBookCategories.length > 1 && (
                                                         <div className="flex items-center gap-3 mb-4">
                                                             <div className="w-6 h-[2px] bg-gold rounded-full" />
                                                             <h3 className="text-xs font-bold text-charcoal/40 uppercase tracking-[0.15em]">
@@ -662,25 +960,36 @@ function BookingContent() {
                                             <div key={i} className="h-12 rounded-xl bg-dusty-rose/20 animate-pulse" />
                                         ))}
                                     </div>
+                                ) : visibleSlots.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <div className="w-12 h-12 bg-blush rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <svg className="w-6 h-6 text-charcoal/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </div>
+                                        <p className="text-charcoal/50 mb-2">Za današnji dan ni več prostih terminov.</p>
+                                        <button
+                                            onClick={goBack}
+                                            className="text-gold text-sm font-medium hover:underline"
+                                        >
+                                            ← Izberite drug datum
+                                        </button>
+                                    </div>
                                 ) : (
                                     <>
                                         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                                            {daySlots.map((time) => {
+                                            {visibleSlots.map((time) => {
                                                 const available = availableSlots.includes(time);
-                                                // Disable past times for today
-                                                const isToday = selectedDate && isSameDay(selectedDate, new Date());
-                                                const isPastSlot = isToday && timeToMinutes(time) <= (new Date().getHours() * 60 + new Date().getMinutes());
-                                                const isDisabled = !available || !!isPastSlot;
                                                 return (
                                                     <motion.button
                                                         key={time}
-                                                        disabled={isDisabled}
-                                                        onClick={() => !isDisabled && handleTimeSelect(time)}
-                                                        whileHover={!isDisabled ? { scale: 1.04 } : {}}
-                                                        whileTap={!isDisabled ? { scale: 0.96 } : {}}
+                                                        disabled={!available}
+                                                        onClick={() => available && handleTimeSelect(time)}
+                                                        whileHover={available ? { scale: 1.04 } : {}}
+                                                        whileTap={available ? { scale: 0.96 } : {}}
                                                         className={`
                                                             py-3 rounded-xl text-sm font-medium transition-all
-                                                            ${!isDisabled
+                                                            ${available
                                                                 ? "bg-porcelain border border-dusty-rose/30 text-charcoal hover:border-gold hover:shadow-md cursor-pointer"
                                                                 : "bg-blush-light border border-dusty-rose/15 text-charcoal/20 cursor-not-allowed line-through decoration-dusty-rose/20"
                                                             }
@@ -692,7 +1001,7 @@ function BookingContent() {
                                             })}
                                         </div>
 
-                                        {availableSlots.length === 0 && (
+                                        {bookableVisibleCount === 0 && (
                                             <div className="text-center py-12 mt-4">
                                                 <div className="w-12 h-12 bg-blush rounded-full flex items-center justify-center mx-auto mb-4">
                                                     <svg className="w-6 h-6 text-charcoal/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -709,7 +1018,7 @@ function BookingContent() {
                                             </div>
                                         )}
 
-                                        {availableSlots.length > 0 && availableSlots.length <= 4 && (
+                                        {bookableVisibleCount > 0 && bookableVisibleCount <= 4 && (
                                             <p className="text-center text-xs text-gold-dark mt-4 font-medium">
                                                 Zadnji prosti termini — rezervirajte kmalu!
                                             </p>
@@ -965,7 +1274,7 @@ function BookingContent() {
                                 </p>
 
                                 <div className="bg-porcelain border border-dusty-rose/30 rounded-2xl p-6 max-w-sm mx-auto mb-8 shadow-sm">
-                                    {selectedServices.map((service, i) => (
+                                    {selectedServices.map((service) => (
                                         <div key={service.id} className="flex justify-between text-sm mb-1">
                                             <span className="text-charcoal">{service.name}</span>
                                             <span className="text-charcoal/50">€{service.price}</span>
@@ -997,6 +1306,8 @@ function BookingContent() {
                                     </button>
                                     <button
                                         onClick={() => {
+                                            clearSavedProgress();
+                                            setFromServices(false);
                                             setStep("service");
                                             setSelectedServiceIds([]);
                                             setSelectedDate(null);

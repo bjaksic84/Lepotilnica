@@ -3,7 +3,6 @@ import { db } from "@/db";
 import { bookings, blockedTimes, services, noShows } from "@/db/schema";
 import { bookingSchema, multiBookingSchema } from "@/lib/validators";
 import { eq, and, not } from "drizzle-orm";
-import { broadcast } from "@/lib/broadcast";
 import { v4 as uuidv4 } from "uuid";
 import { sendBookingConfirmation } from "@/lib/email";
 import { bookingLimiter, getClientIp } from "@/lib/rate-limit";
@@ -213,11 +212,6 @@ export async function POST(request: Request) {
                 cancellationToken: b.cancellationToken,
             })),
         }).catch((err) => console.error("[Email] Background send failed:", err));
-
-        // ── Broadcast each booking ───────────────────────────────
-        for (const booking of createdBookings) {
-            await broadcast({ event: "booking_created", data: booking });
-        }
 
         return NextResponse.json(createdBookings, { status: 201 });
     } catch (error) {

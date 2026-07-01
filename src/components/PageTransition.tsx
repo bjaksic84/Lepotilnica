@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { LayoutRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { useContext, useRef } from "react";
+import { useContext, useState } from "react";
 
 /**
  * Preserves the previous route's content during exit animation
@@ -11,7 +11,9 @@ import { useContext, useRef } from "react";
  */
 function FrozenRouter({ children }: { children: React.ReactNode }) {
     const context = useContext(LayoutRouterContext ?? ({} as never));
-    const frozen = useRef(context).current;
+    // Snapshot the router context on first render only (useState initializer),
+    // so the exiting route keeps its content frozen during the exit animation.
+    const [frozen] = useState(context);
 
     return (
         <LayoutRouterContext.Provider value={frozen}>

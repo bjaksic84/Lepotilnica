@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
+import { SITE_URL, SITE_NAME } from "@/lib/site";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -41,9 +42,13 @@ export const metadata: Metadata = {
     "salon lepote Ljubljana",
     "trajno lakiranje",
   ],
+  applicationName: SITE_NAME,
   authors: [{ name: "Lepotilnica by Karin" }],
   creator: "Lepotilnica by Karin",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"),
+  publisher: "Lepotilnica by Karin",
+  category: "beauty",
+  formatDetection: { telephone: true, address: true, email: true },
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     type: "website",
     locale: "sl_SI",
@@ -87,6 +92,13 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#D4AF37",
+  colorScheme: "light",
+  width: "device-width",
+  initialScale: 1,
+};
+
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PageTransition from "@/components/PageTransition";
@@ -94,7 +106,7 @@ import ScrollToTop from "@/components/ScrollToTop";
 
 // JSON-LD Structured Data for Local Business SEO
 function JsonLd() {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://lepotilnica.si";
+  const baseUrl = SITE_URL;
 
   const localBusiness = {
     "@context": "https://schema.org",

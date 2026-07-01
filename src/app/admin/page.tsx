@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import WeeklyTimetable, { Booking as WeeklyBooking, BlockedTime } from "@/components/WeeklyTimetable";
 import BlockRangePanel from "@/components/BlockRangePanel";
 import { getScheduleForDateStr, timeToMinutes, minutesToTime } from "@/lib/schedule";
-import { useWebSocket, WsEvent } from "@/lib/useWebSocket";
 import ToastContainer, { useToast } from "@/components/Toast";
 
 type Booking = WeeklyBooking & {
@@ -66,46 +65,8 @@ export default function AdminPage() {
     const router = useRouter();
     const { toasts, addToast, removeToast } = useToast();
 
-    // ── Real-time WebSocket ────────────────────────────────────────────────
-    const handleWsEvent = useCallback((event: WsEvent) => {
-        if (event.event === "connected") return;
-
-        const bookingEvents = ["booking_created", "booking_updated", "booking_deleted"];
-        const blockedEvents = ["blocked_time_created", "blocked_time_deleted"];
-
-        if ([...bookingEvents, ...blockedEvents].includes(event.event)) {
-            fetchData();
-            if (activeTab === "stats") fetchAnalytics();
-        }
-
-        const messages: Record<string, { title: string; message: string }> = {
-            booking_created: { title: "New Booking", message: `${(event.data as Record<string, unknown>).customerName || "A customer"} just booked an appointment` },
-            booking_updated: { title: "Booking Updated", message: `Booking #${(event.data as Record<string, unknown>).id} status changed to ${(event.data as Record<string, unknown>).status}` },
-            booking_deleted: { title: "Booking Deleted", message: `Booking #${(event.data as Record<string, unknown>).id} was removed` },
-            blocked_time_created: { title: "Time Blocked", message: "A new time slot has been blocked" },
-            blocked_time_deleted: { title: "Block Removed", message: "A blocked time slot was freed up" },
-            service_created: { title: "Service Added", message: "A new service was created" },
-            service_updated: { title: "Service Updated", message: "A service was modified" },
-            service_deleted: { title: "Service Deleted", message: "A service was removed" },
-            category_created: { title: "Category Added", message: "A new category was created" },
-            category_updated: { title: "Category Updated", message: "A category was modified" },
-            category_deleted: { title: "Category Deleted", message: "A category was removed" },
-        };
-
-        const msg = messages[event.event];
-        if (msg) {
-            addToast({
-                type: bookingEvents.includes(event.event) ? "info" : blockedEvents.includes(event.event) ? "warning" : "success",
-                title: msg.title,
-                message: msg.message,
-            });
-        }
-    }, [addToast, activeTab]);
-
-    const { status: wsStatus } = useWebSocket({ onEvent: handleWsEvent });
-
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const weekStart = format(startOfWeek(viewDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
             const weekEnd = format(endOfWeek(viewDate, { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -128,7 +89,7 @@ export default function AdminPage() {
         } catch (error) {
             console.error("Failed to fetch data", error);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
@@ -196,6 +157,17 @@ export default function AdminPage() {
     useEffect(() => {
         fetchData();
         fetchNoShows();
+    }, [viewDate]);
+
+    // Auto-refresh: silently poll for changes while the tab is visible so new
+    // bookings appear without a manual reload.
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+            fetchData(true);
+            fetchNoShows();
+        }, 30000);
+        return () => clearInterval(interval);
     }, [viewDate]);
 
     useEffect(() => {
@@ -479,22 +451,6 @@ export default function AdminPage() {
                     </div>
                 </div>
             )}
-
-            {/* WebSocket Status */}
-            <div className="fixed bottom-4 right-4 z-50">
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm border ${
-                    wsStatus === "connected"
-                        ? "bg-green-50 text-green-700 border-green-200"
-                        : wsStatus === "reconnecting" || wsStatus === "connecting"
-                        ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                        : "bg-red-50 text-red-700 border-red-200"
-                }`}>
-                    <div className={`w-2 h-2 rounded-full ${
-                        wsStatus === "connected" ? "bg-green-500 animate-pulse" : wsStatus === "reconnecting" || wsStatus === "connecting" ? "bg-yellow-500 animate-pulse" : "bg-red-500"
-                    }`} />
-                    {wsStatus === "connected" ? "Live" : wsStatus === "reconnecting" ? "Reconnecting..." : wsStatus === "connecting" ? "Connecting..." : "Offline"}
-                </div>
-            </div>
 
             <div className="container mx-auto px-4 max-w-7xl">
                 {/* Header */}

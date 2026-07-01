@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { categories, services } from "@/db/schema";
 import ServicesList from "@/components/ServicesList";
 import ServicesHero from "@/components/ServicesHero";
+import { SITE_URL, SITE_NAME } from "@/lib/site";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,11 @@ export const metadata: Metadata = {
     },
 };
 
-export default async function ServicesPage() {
+export default async function ServicesPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ selected?: string }>;
+}) {
     // Server-side fetching
     const allCategories = await db.select().from(categories).orderBy(categories.createdAt);
     const allServices = await db.select().from(services).orderBy(services.createdAt);
@@ -29,13 +34,73 @@ export default async function ServicesPage() {
         services: allServices.filter((s) => s.categoryId === cat.id),
     }));
 
+    // Counts for the hero subtitle — derived from real data, never hardcoded
+    const categoriesWithAny = categoriesWithServices.filter((c) => c.services.length > 0);
+    const categoryCount = categoriesWithAny.length;
+    const serviceCount = allServices.length;
+
+    // Restore the user's selection when returning from the booking flow
+    // (/services?selected=1,2). Filter to IDs that still exist.
+    const { selected } = await searchParams;
+    const validIds = new Set(allServices.map((s) => s.id));
+    const initialSelectedIds = (selected ?? "")
+        .split(",")
+        .map(Number)
+        .filter((n) => !isNaN(n) && validIds.has(n));
+
+    // Structured data (JSON-LD) built from the real catalogue — lets search
+    // engines surface each service with its price as a rich result.
+    const offers = categoriesWithServices.flatMap((cat) =>
+        cat.services.map((s) => ({ service: s, categoryName: cat.name }))
+    );
+    const offerCatalogJsonLd = {
+        "@context": "https://schema.org",
+        "@type": "OfferCatalog",
+        "@id": `${SITE_URL}/services#catalog`,
+        name: `Storitve — ${SITE_NAME}`,
+        url: `${SITE_URL}/services`,
+        numberOfItems: offers.length,
+        itemListElement: offers.map(({ service, categoryName }, i) => ({
+            "@type": "Offer",
+            position: i + 1,
+            price: service.price,
+            priceCurrency: "EUR",
+            availability: "https://schema.org/InStock",
+            url: `${SITE_URL}/services`,
+            itemOffered: {
+                "@type": "Service",
+                name: service.name,
+                serviceType: categoryName,
+                ...(service.description ? { description: service.description } : {}),
+                provider: { "@type": "BeautySalon", "@id": `${SITE_URL}/#salon`, name: SITE_NAME },
+            },
+        })),
+    };
+    const breadcrumbJsonLd = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Domov", item: SITE_URL },
+            { "@type": "ListItem", position: 2, name: "Storitve", item: `${SITE_URL}/services` },
+        ],
+    };
+
     return (
         <main className="min-h-screen bg-porcelain pt-32 pb-20">
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(offerCatalogJsonLd) }}
+            />
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+            />
+
             {/* Hero Section - Client Component for animations */}
-            <ServicesHero />
+            <ServicesHero categoryCount={categoryCount} serviceCount={serviceCount} />
 
             {/* Services List - Client Component for animations */}
-            <ServicesList categories={categoriesWithServices} />
+            <ServicesList categories={categoriesWithServices} initialSelectedIds={initialSelectedIds} />
 
             {/* Call to Action - Static or separate component */}
             <ServicesCTA />

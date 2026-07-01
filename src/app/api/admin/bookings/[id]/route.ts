@@ -2,7 +2,6 @@ import { db } from "@/db";
 import { bookings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { broadcast } from "@/lib/broadcast";
 
 // DELETE /api/admin/bookings/[id]
 export async function DELETE(
@@ -12,7 +11,6 @@ export async function DELETE(
     try {
         const { id } = await params;
         await db.delete(bookings).where(eq(bookings.id, parseInt(id)));
-        await broadcast({ event: "booking_deleted", data: { id: parseInt(id) } });
         return NextResponse.json({ success: true });
     } catch (error) {
         return NextResponse.json({ error: "Failed to delete booking" }, { status: 500 });
@@ -38,7 +36,6 @@ export async function PATCH(
             .set({ status })
             .where(eq(bookings.id, parseInt(id)));
 
-        await broadcast({ event: "booking_updated", data: { id: parseInt(id), status } });
         return NextResponse.json({ success: true });
     } catch (error) {
         return NextResponse.json({ error: "Failed to update booking" }, { status: 500 });

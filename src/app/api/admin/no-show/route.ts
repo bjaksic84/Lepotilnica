@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { noShows, bookings, services } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { broadcast } from "@/lib/broadcast";
 import { format } from "date-fns";
 
 // POST /api/admin/no-show — Record a no-show for a booking
@@ -64,11 +63,6 @@ export async function POST(request: Request) {
             .update(bookings)
             .set({ status: "cancelled" })
             .where(eq(bookings.id, bookingId));
-
-        await broadcast({
-            event: "booking_updated",
-            data: { id: bookingId, status: "cancelled", noShow: true },
-        });
 
         const isBlacklisted = newCount >= 2;
 

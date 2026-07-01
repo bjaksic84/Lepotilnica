@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { bookings, services } from "@/db/schema";
+import { bookings } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { broadcast } from "@/lib/broadcast";
 import { cancelLimiter, getClientIp } from "@/lib/rate-limit";
 
 export async function GET(
@@ -70,24 +69,6 @@ export async function GET(
             .update(bookings)
             .set({ status: "cancelled" })
             .where(eq(bookings.id, booking.id));
-
-        // Fetch service info for the broadcast
-        const service = await db
-            .select()
-            .from(services)
-            .where(eq(services.id, booking.serviceId))
-            .get();
-
-        await broadcast({
-            event: "booking_updated",
-            data: {
-                ...booking,
-                status: "cancelled",
-                serviceName: service?.name,
-                serviceDuration: service?.duration,
-                servicePrice: service?.price,
-            },
-        });
 
         return NextResponse.json({
             success: true,

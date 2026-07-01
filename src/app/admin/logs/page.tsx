@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useWebSocket, WsEvent } from "@/lib/useWebSocket";
 import ToastContainer, { useToast } from "@/components/Toast";
 
 type BookingNote = {
@@ -42,16 +41,6 @@ export default function AdminLogsPage() {
     const router = useRouter();
     const { toasts, addToast, removeToast } = useToast();
 
-    const handleWsEvent = useCallback((event: WsEvent) => {
-        if (event.event === "connected") return;
-        const bookingEvents = ["booking_created", "booking_updated", "booking_deleted"];
-        if (bookingEvents.includes(event.event)) {
-            fetchCustomers();
-        }
-    }, []);
-
-    const { status: wsStatus } = useWebSocket({ onEvent: handleWsEvent });
-
     const fetchCustomers = async () => {
         try {
             const res = await fetch("/api/admin/customers");
@@ -72,6 +61,15 @@ export default function AdminLogsPage() {
 
     useEffect(() => {
         fetchCustomers();
+    }, []);
+
+    // Auto-refresh: silently poll for new customer activity while the tab is visible.
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+            fetchCustomers();
+        }, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     const addNote = async (email: string) => {
@@ -130,22 +128,6 @@ export default function AdminLogsPage() {
     return (
         <div className="min-h-screen bg-gray-50 pt-24 pb-20">
             <ToastContainer toasts={toasts} onDismiss={removeToast} />
-
-            {/* WebSocket Status */}
-            <div className="fixed bottom-4 right-4 z-50">
-                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm border ${
-                    wsStatus === "connected"
-                        ? "bg-green-50 text-green-700 border-green-200"
-                        : wsStatus === "reconnecting" || wsStatus === "connecting"
-                        ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                        : "bg-red-50 text-red-700 border-red-200"
-                }`}>
-                    <div className={`w-2 h-2 rounded-full ${
-                        wsStatus === "connected" ? "bg-green-500 animate-pulse" : wsStatus === "reconnecting" || wsStatus === "connecting" ? "bg-yellow-500 animate-pulse" : "bg-red-500"
-                    }`} />
-                    {wsStatus === "connected" ? "Live" : wsStatus === "reconnecting" ? "Reconnecting..." : wsStatus === "connecting" ? "Connecting..." : "Offline"}
-                </div>
-            </div>
 
             <div className="container mx-auto px-4 max-w-7xl">
                 <div className="mb-8">

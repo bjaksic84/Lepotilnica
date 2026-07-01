@@ -124,4 +124,17 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Thin gold scrollbar for the horizontal category nav */
+  .menuscroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(212, 175, 55, 0.4) transparent;
+  }
+  .menuscroll::-webkit-scrollbar {
+    height: 6px;
+  }
+  .menuscroll::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.4);
+    border-radius: 4px;
+  }
 }
