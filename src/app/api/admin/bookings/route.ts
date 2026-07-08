@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { bookings, services } from "@/db/schema";
 import { desc, and, gte, lte, eq } from "drizzle-orm";
+import { multiBookingSchema } from "@/lib/validators";
+import { createBookings } from "@/lib/booking-service";
+import { sendBookingConfirmation } from "@/lib/email";
 
 export async function GET(request: Request) {
     try {
@@ -41,6 +44,52 @@ export async function GET(request: Request) {
         const allBookings = await query;
         return NextResponse.json(allBookings);
     } catch (error) {
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+}
+
+/**
+ * Admin manual booking creation. Auth is enforced by middleware (all of
+ * /api/admin/* requires the admin_session cookie). Unlike the public flow
+ * it isn't rate-limited and skips the no-show blacklist (the admin is
+ * deliberately booking someone), but still enforces schedule/overlap/block
+ * checks via the shared helper. The confirmation email is opt-in
+ * (`sendConfirmation`, default true).
+ */
+export async function POST(request: Request) {
+    try {
+        const body = await request.json();
+        const result = multiBookingSchema.safeParse(body);
+        if (!result.success) {
+            return NextResponse.json(
+                { error: "Validation failed", details: result.error.flatten().fieldErrors },
+                { status: 400 }
+            );
+        }
+
+        const created = await createBookings(result.data);
+        if (!created.ok) {
+            return NextResponse.json({ error: created.error }, { status: created.status });
+        }
+
+        if (body.sendConfirmation !== false) {
+            sendBookingConfirmation({
+                customerName: result.data.customerName,
+                customerEmail: result.data.customerEmail,
+                date: result.data.date,
+                items: created.created.map((b) => ({
+                    serviceName: b.serviceName,
+                    servicePrice: b.servicePrice,
+                    serviceDuration: b.serviceDuration,
+                    time: b.time,
+                    cancellationToken: b.cancellationToken,
+                })),
+            }).catch((err) => console.error("[Email] Background send failed:", err));
+        }
+
+        return NextResponse.json(created.created, { status: 201 });
+    } catch (error) {
+        console.error("Admin booking error:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

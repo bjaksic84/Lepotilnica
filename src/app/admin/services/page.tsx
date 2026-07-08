@@ -205,13 +205,6 @@ export default function AdminServicesPage() {
                     <p className="text-gray-500 mt-1">Manage categories and services for your website.</p>
                 </div>
 
-                {/* Dashboard Navigation */}
-                <div className="flex gap-4 mb-8">
-                    <Link href="/admin" className="px-6 py-3 rounded-xl font-bold bg-white text-gray-600 hover:bg-gray-100 transition-all">Bookings</Link>
-                    <div className="px-6 py-3 rounded-xl font-bold bg-yellow-500 text-white shadow-lg cursor-default">Services</div>
-                    <Link href="/admin/logs" className="px-6 py-3 rounded-xl font-bold bg-white text-gray-600 hover:bg-gray-100 transition-all">Logs</Link>
-                </div>
-
                 {/* Tabs */}
                 <div className="flex gap-4 mb-8">
                     <button

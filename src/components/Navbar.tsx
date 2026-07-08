@@ -22,6 +22,9 @@ export default function Navbar() {
         setScrolled(latest > 20);
     });
 
+    // The admin area has its own chrome (AdminShell) — hide the public navbar there.
+    if (pathname.startsWith("/admin")) return null;
+
     return (
         <>
             <motion.nav

@@ -4,13 +4,21 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
     const path = request.nextUrl.pathname;
 
-    // Define paths that are protected
-    const isProtectedPath = path.startsWith('/admin') && !path.startsWith('/admin/login');
+    // Protected pages: everything under /admin except the login screen itself.
+    const isProtectedPage = path.startsWith('/admin') && !path.startsWith('/admin/login');
+    // Protected APIs: /api/admin/* (booking/customer data + mutations). This was
+    // previously unguarded — only the pages were — leaving these endpoints
+    // reachable without the session cookie.
+    const isProtectedApi = path.startsWith('/api/admin');
 
-    if (isProtectedPath) {
+    if (isProtectedPage || isProtectedApi) {
         const adminSession = request.cookies.get('admin_session');
 
         if (!adminSession) {
+            // APIs are called via fetch and expect JSON, not an HTML redirect.
+            if (isProtectedApi) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            }
             return NextResponse.redirect(new URL('/admin/login', request.url));
         }
     }

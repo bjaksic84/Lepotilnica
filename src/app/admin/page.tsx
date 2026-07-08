@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import WeeklyTimetable, { Booking as WeeklyBooking, BlockedTime } from "@/components/WeeklyTimetable";
 import BlockRangePanel from "@/components/BlockRangePanel";
+import AddBookingModal from "@/components/admin/AddBookingModal";
+import SlotActionModal from "@/components/admin/SlotActionModal";
+import BlockTimeModal from "@/components/admin/BlockTimeModal";
 import { getScheduleForDateStr, timeToMinutes, minutesToTime } from "@/lib/schedule";
 import ToastContainer, { useToast } from "@/components/Toast";
 
@@ -50,20 +52,32 @@ type AnalyticsData = {
     }[];
 };
 
-export default function AdminPage() {
+function AdminDashboard() {
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
     const [loading, setLoading] = useState(true);
     const [viewDate, setViewDate] = useState(new Date());
-    const [activeTab, setActiveTab] = useState<"calendar" | "list" | "stats">("calendar");
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [noShowMap, setNoShowMap] = useState<Record<string, number>>({});
     const [blockingRange, setBlockingRange] = useState(false);
 
+    // Manual booking / block flows (from the timetable empty-slot action sheet
+    // or the bookings-table add button).
+    const [slotAction, setSlotAction] = useState<{ date: string; time: string } | null>(null);
+    const [addBooking, setAddBooking] = useState<{ date?: string; time?: string } | null>(null);
+    const [blockInit, setBlockInit] = useState<{ date: string; time: string } | null>(null);
+
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { toasts, addToast, removeToast } = useToast();
+
+    // The active tab is driven by ?tab= so the AdminShell drawer can link to it
+    // (and it stays deep-linkable / back-button friendly).
+    const tabParam = searchParams.get("tab");
+    const activeTab: "calendar" | "list" | "stats" =
+        tabParam === "list" || tabParam === "stats" ? tabParam : "calendar";
 
     const fetchData = async (silent = false) => {
         if (!silent) setLoading(true);
@@ -200,19 +214,14 @@ export default function AdminPage() {
         }
     };
 
-    const handleBlockTime = async (date: string, startTime: string, endTime: string) => {
-        try {
-            const res = await fetch("/api/admin/blocked-times", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ date, startTime, endTime, reason: "Manual Block" }),
-            });
-            if (res.ok) fetchData();
-            else alert("Failed to block time");
-        } catch (error) {
-            console.error(error);
-            alert("Error blocking time");
-        }
+    const handleBlockTime = async (date: string, startTime: string, endTime: string, reason = "Ročna blokada") => {
+        const res = await fetch("/api/admin/blocked-times", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date, startTime, endTime, reason: reason || "Ročna blokada" }),
+        });
+        if (!res.ok) throw new Error("Failed to block time");
+        fetchData();
     };
 
     const handleBlockRange = async (
@@ -452,6 +461,41 @@ export default function AdminPage() {
                 </div>
             )}
 
+            {/* ── Empty-slot action sheet (tap empty space in the timetable) ── */}
+            {slotAction && (
+                <SlotActionModal
+                    date={slotAction.date}
+                    time={slotAction.time}
+                    onPickReservation={() => { setAddBooking(slotAction); setSlotAction(null); }}
+                    onPickBlock={() => { setBlockInit(slotAction); setSlotAction(null); }}
+                    onClose={() => setSlotAction(null)}
+                />
+            )}
+
+            {/* ── Manual booking modal ── */}
+            {addBooking && (
+                <AddBookingModal
+                    initialDate={addBooking.date}
+                    initialTime={addBooking.time}
+                    onClose={() => setAddBooking(null)}
+                    onCreated={() => {
+                        setAddBooking(null);
+                        addToast({ type: "success", title: "Rezervacija ustvarjena" });
+                        fetchData();
+                    }}
+                />
+            )}
+
+            {/* ── Block-interval modal ── */}
+            {blockInit && (
+                <BlockTimeModal
+                    date={blockInit.date}
+                    startTime={blockInit.time}
+                    onBlock={handleBlockTime}
+                    onClose={() => setBlockInit(null)}
+                />
+            )}
+
             <div className="container mx-auto px-4 max-w-7xl">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -468,32 +512,7 @@ export default function AdminPage() {
                             <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Revenue</span>
                             <span className="text-xl font-bold text-yellow-600">€{weekStats.revenue}</span>
                         </div>
-                        <Link href="/admin/services" className="bg-gray-900 text-white px-5 py-3 rounded-xl shadow-lg hover:bg-gray-800 transition-all flex items-center gap-2 text-sm font-bold">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
-                            Services
-                        </Link>
-                        <Link href="/admin/logs" className="bg-white text-gray-700 px-5 py-3 rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-all flex items-center gap-2 text-sm font-bold">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            Logs
-                        </Link>
                     </div>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex gap-1 mb-6 bg-white p-1 rounded-xl w-fit shadow-sm border border-gray-100">
-                    {(["calendar", "list", "stats"] as const).map((tab) => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`px-5 py-2 rounded-lg font-bold text-sm transition-all ${
-                                activeTab === tab
-                                    ? "bg-gray-900 text-white shadow-sm"
-                                    : "text-gray-500 hover:bg-gray-50"
-                            }`}
-                        >
-                            {tab === "calendar" ? "Calendar" : tab === "list" ? "Bookings" : "Analytics"}
-                        </button>
-                    ))}
                 </div>
 
                 {/* ── Calendar Tab ────────────────────────────────────── */}
@@ -504,7 +523,7 @@ export default function AdminPage() {
                             <svg className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <div>
                                 <h3 className="font-bold text-yellow-800 text-sm">How to use the calendar</h3>
-                                <p className="text-yellow-700 text-sm">Click a booking to see full details. <span className="font-semibold">Desktop:</span> drag empty slots to block time. <span className="font-semibold">Tablet:</span> tap an empty slot to block 30 min. For longer absences (vacation), use the block panel above. Click a blocked slot to remove it.</p>
+                                <p className="text-yellow-700 text-sm">Tap <span className="font-semibold">empty space</span> to add a booking or block time. Tap a <span className="font-semibold">booking</span> for its details, or a <span className="font-semibold">blocked</span> area to remove it. On mobile it shows one day — use the arrows to move between days. For longer absences (vacation), use the block panel above.</p>
                             </div>
                         </div>
                         <WeeklyTimetable
@@ -512,8 +531,8 @@ export default function AdminPage() {
                             blockedTimes={blockedTimes}
                             currentDate={viewDate}
                             onDateChange={setViewDate}
-                            onBlockTime={handleBlockTime}
                             onDeleteBlock={handleDeleteBlock}
+                            onEmptySlotClick={(date, time) => setSlotAction({ date, time })}
                             onBookingClick={(id) => {
                                 const booking = bookings.find(b => b.id === id);
                                 if (booking) setSelectedBooking(booking);
@@ -525,6 +544,15 @@ export default function AdminPage() {
                 {/* ── List Tab ────────────────────────────────────────── */}
                 {activeTab === "list" && (
                     <div className="space-y-4">
+                        <div className="flex justify-end">
+                            <button
+                                onClick={() => setAddBooking({})}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors shadow-sm"
+                            >
+                                <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                Dodaj rezervacijo
+                            </button>
+                        </div>
                         {bookings.length === 0 && (
                             <div className="text-center py-16 text-gray-400 bg-white rounded-2xl border border-gray-100">
                                 <svg className="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -974,5 +1002,20 @@ function StatCard({ label, value, change, invertChange, icon }: {
                 <div className="text-xs text-gray-400 font-medium uppercase tracking-wider mt-0.5">{label}</div>
             </div>
         </div>
+    );
+}
+
+// useSearchParams (for the ?tab= selection) requires a Suspense boundary.
+export default function AdminPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 pt-24">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500" />
+                </div>
+            }
+        >
+            <AdminDashboard />
+        </Suspense>
     );
 }

@@ -24,7 +24,10 @@ export default function BookingCalendar({
     onSelect: (date: Date) => void;
     selectedDate?: Date;
 }) {
-    const [currentMonth, setCurrentMonth] = useState(new Date());
+    // Open on the pre-selected date's month (e.g. restored progress or a jump
+    // back to this step) so the highlighted selection is actually visible,
+    // instead of always landing on the current month.
+    const [currentMonth, setCurrentMonth] = useState(selectedDate ?? new Date());
 
     const days = eachDayOfInterval({
         start: startOfMonth(currentMonth),

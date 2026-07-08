@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { Service, Category } from "@/db/schema";
+import { syncServiceSelection } from "@/lib/booking-storage";
 
 type CategoryWithServices = Category & {
     services: Service[];
@@ -78,12 +79,29 @@ export default function ServicesList({
     // Keep the URL's ?selected= param in sync with the live selection, so a manual
     // refresh restores exactly what's selected now — and a manual removal actually
     // sticks. Uses history.replaceState to avoid a server round-trip on each toggle.
+    //
+    // Also mirror the selection into the shared booking store so re-entering the
+    // flow via the navbar "Rezerviraj" (which carries no params) reflects the
+    // latest selection instead of a stale snapshot. We skip the initial render
+    // when it starts empty, so opening /services with no ?selected doesn't clobber
+    // an unrelated in-progress booking.
+    const prevSyncedIds = useRef<number[] | null>(null);
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (selectedIds.length > 0) params.set("selected", selectedIds.join(","));
         else params.delete("selected");
         const qs = params.toString();
         window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+
+        const prev = prevSyncedIds.current;
+        prevSyncedIds.current = selectedIds;
+        // Only write an empty selection when the user actually cleared a
+        // previously non-empty one — so opening /services with nothing selected
+        // never clobbers an unrelated in-progress booking (and dev StrictMode's
+        // double-invoke stays a no-op).
+        const wasNonEmpty = prev !== null && prev.length > 0;
+        if (selectedIds.length === 0 && !wasNonEmpty) return;
+        syncServiceSelection(selectedIds);
     }, [selectedIds]);
 
     const scrollToCategory = useCallback((catId: number) => {

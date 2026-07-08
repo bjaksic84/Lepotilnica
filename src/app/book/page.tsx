@@ -8,6 +8,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import BookingCalendar from "@/components/BookingCalendar";
 import { multiBookingSchema } from "@/lib/validators";
 import { generateSlotsForDateStr, timeToMinutes, minutesToTime } from "@/lib/schedule";
+import {
+    type Step,
+    type SavedProgress,
+    sameIdSet,
+    readProgress,
+    writeProgress,
+    clearProgress,
+} from "@/lib/booking-storage";
 
 /* ─── Types ──────────────────────────────────────────── */
 
@@ -27,8 +35,6 @@ type Category = {
     services: Service[];
 };
 
-type Step = "service" | "date" | "time" | "details" | "confirmation";
-
 /* ─── Constants ──────────────────────────────────────── */
 
 const STEP_CONFIG: { key: Step; label: string }[] = [
@@ -40,30 +46,6 @@ const STEP_CONFIG: { key: Step; label: string }[] = [
 
 // Full linear order used for navigation math.
 const STEP_ORDER: Step[] = ["service", "date", "time", "details", "confirmation"];
-
-// Persist in-progress bookings so a reload / accidental navigation doesn't lose work.
-const BOOKING_STORAGE_KEY = "lepotilnica:booking:v1";
-const STORAGE_MAX_AGE_MS = 1000 * 60 * 60 * 24; // Ignore progress older than 24h
-
-type SavedProgress = {
-    selectedServiceIds?: number[];
-    selectedDate?: string | null; // yyyy-MM-dd
-    selectedTime?: string | null;
-    name?: string;
-    email?: string;
-    phone?: string;
-    notes?: string;
-    step?: Step;
-    fromServices?: boolean;
-    savedAt?: number;
-};
-
-function sameIdSet(a: number[] | undefined, b: number[]): boolean {
-    if (!a || a.length !== b.length) return false;
-    const sa = [...a].sort((x, y) => x - y);
-    const sb = [...b].sort((x, y) => x - y);
-    return sa.every((v, i) => v === sb[i]);
-}
 
 /* ─── Animation Variants ─────────────────────────────── */
 
@@ -244,12 +226,7 @@ function BookingContent() {
     // Restore saved progress on mount (client-only, so no hydration mismatch).
     useEffect(() => {
         try {
-            const raw = localStorage.getItem(BOOKING_STORAGE_KEY);
-            const saved: SavedProgress | null = raw ? JSON.parse(raw) : null;
-            const fresh =
-                saved && (!saved.savedAt || Date.now() - saved.savedAt < STORAGE_MAX_AGE_MS)
-                    ? saved
-                    : null;
+            const fresh = readProgress();
 
             const hasServicesParam = !!searchParams.get("services");
             const hasSingleParam = !!searchParams.get("service");
@@ -314,31 +291,31 @@ function BookingContent() {
     // Persist progress whenever it changes (post-hydration, excluding the terminal step).
     useEffect(() => {
         if (!hydrated || step === "confirmation") return;
-        try {
-            const payload: SavedProgress = {
-                selectedServiceIds,
-                selectedDate: selectedDate ? format(selectedDate, "yyyy-MM-dd") : null,
-                selectedTime,
-                name,
-                email,
-                phone,
-                notes,
-                step,
-                fromServices,
-                savedAt: Date.now(),
-            };
-            localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(payload));
-        } catch {
-            // Storage may be unavailable (private mode) — ignore.
-        }
+        const payload: SavedProgress = {
+            selectedServiceIds,
+            selectedDate: selectedDate ? format(selectedDate, "yyyy-MM-dd") : null,
+            selectedTime,
+            name,
+            email,
+            phone,
+            notes,
+            step,
+            fromServices,
+        };
+        writeProgress(payload);
     }, [hydrated, selectedServiceIds, selectedDate, selectedTime, name, email, phone, notes, step, fromServices]);
 
+    // Each step is its own screen, but the steps swap in place (no route change),
+    // so the window keeps whatever scroll position the previous step left behind
+    // — e.g. selecting a service low in the long step-1 list dropped users near
+    // the bottom of step 2. Reset to the top on every step change so each step
+    // always starts at its beginning.
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: "auto" });
+    }, [step]);
+
     const clearSavedProgress = useCallback(() => {
-        try {
-            localStorage.removeItem(BOOKING_STORAGE_KEY);
-        } catch {
-            // ignore
-        }
+        clearProgress();
     }, []);
 
     const scrollToBookCategory = useCallback((catId: number) => {

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const QUICK_LINKS = [
     { label: "Storitve", href: "/services" },
@@ -17,6 +18,10 @@ const HOURS = [
 ];
 
 export default function Footer() {
+    const pathname = usePathname();
+    // The admin area has its own chrome — no public footer there.
+    if (pathname.startsWith("/admin")) return null;
+
     return (
         <footer className="bg-charcoal text-porcelain/50 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
