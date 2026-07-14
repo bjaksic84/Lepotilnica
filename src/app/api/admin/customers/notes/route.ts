@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { customerNotes } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 // POST /api/admin/customers/notes — Add an admin note for a customer
 export async function POST(request: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const body = await request.json();
         const { customerEmail, note } = body;
@@ -34,6 +38,9 @@ export async function POST(request: Request) {
 
 // DELETE /api/admin/customers/notes — Delete an admin note
 export async function DELETE(request: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get("id");

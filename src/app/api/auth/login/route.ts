@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { authLimiter, getClientIp } from "@/lib/rate-limit";
+import { authLimiter, getClientIp, enforceRateLimit } from "@/lib/rate-limit";
+import { createSessionToken } from "@/lib/session";
 
 export async function POST(request: Request) {
     try {
         // ── Rate limiting ────────────────────────────────────────
         const ip = getClientIp(request);
-        const { success: withinLimit } = await authLimiter.check(ip, 5);
+        const withinLimit = await enforceRateLimit("AUTH_RATE_LIMITER", ip, authLimiter, 5);
         if (!withinLimit) {
             return NextResponse.json(
                 { error: "Too many login attempts. Please try again later." },
@@ -16,13 +17,22 @@ export async function POST(request: Request) {
 
         const { password } = await request.json();
 
-        // In a real app, use a secure environment variable. 
-        // Fallback for demo purposes if env not set.
-        const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+        // No insecure default: fail closed if the password isn't configured.
+        const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+        if (!ADMIN_PASSWORD) {
+            console.error("[Auth] ADMIN_PASSWORD is not configured");
+            return NextResponse.json({ error: "Server error" }, { status: 500 });
+        }
 
-        if (password === ADMIN_PASSWORD) {
-            // Set HTTP-only cookie
-            (await cookies()).set("admin_session", "true", {
+        if (typeof password === "string" && password === ADMIN_PASSWORD) {
+            // Mint a signed, expiring session token (see src/lib/session.ts).
+            const token = await createSessionToken();
+            if (!token) {
+                console.error("[Auth] Unable to mint session token (no signing secret)");
+                return NextResponse.json({ error: "Server error" }, { status: 500 });
+            }
+
+            (await cookies()).set("admin_session", token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "strict",
@@ -34,7 +44,7 @@ export async function POST(request: Request) {
         }
 
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: "Server error" }, { status: 500 });
     }
 }

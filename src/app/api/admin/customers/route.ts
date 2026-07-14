@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { bookings, services, customerNotes, noShows } from "@/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 
 // GET /api/admin/customers — List all customers grouped by email with their notes
 export async function GET() {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         // 1. Get all unique customers from bookings
         const allBookings = await db

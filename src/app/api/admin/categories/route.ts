@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { categories } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const allCategories = await db.select().from(categories).orderBy(categories.createdAt);
         return NextResponse.json(allCategories);
@@ -13,6 +17,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const { name, description } = await req.json();
 

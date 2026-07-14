@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { bookings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -8,6 +9,9 @@ export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const { id } = await params;
         await db.delete(bookings).where(eq(bookings.id, parseInt(id)));
@@ -22,6 +26,9 @@ export async function PATCH(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const { id } = await params;
         const body = await request.json();

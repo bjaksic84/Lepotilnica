@@ -3,6 +3,7 @@ import { categories, services } from "@/db/schema";
 import ServicesList from "@/components/ServicesList";
 import ServicesHero from "@/components/ServicesHero";
 import { SITE_URL, SITE_NAME } from "@/lib/site";
+import { jsonLdScript } from "@/lib/json-ld";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -89,11 +90,11 @@ export default async function ServicesPage({
         <main className="min-h-screen bg-porcelain pt-32 pb-20">
             <script
                 type="application/ld+json"
-                dangerouslySetInnerHTML={{ __html: JSON.stringify(offerCatalogJsonLd) }}
+                dangerouslySetInnerHTML={{ __html: jsonLdScript(offerCatalogJsonLd) }}
             />
             <script
                 type="application/ld+json"
-                dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+                dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd) }}
             />
 
             {/* Hero Section - Client Component for animations */}

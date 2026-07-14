@@ -4,14 +4,14 @@ import { noShows } from "@/db/schema";
 import { bookingSchema, multiBookingSchema } from "@/lib/validators";
 import { eq } from "drizzle-orm";
 import { sendBookingConfirmation } from "@/lib/email";
-import { bookingLimiter, getClientIp } from "@/lib/rate-limit";
+import { bookingLimiter, getClientIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createBookings } from "@/lib/booking-service";
 
 export async function POST(request: Request) {
     try {
         // ── Rate limiting ────────────────────────────────────────
         const ip = getClientIp(request);
-        const { success: withinLimit } = await bookingLimiter.check(ip, 5);
+        const withinLimit = await enforceRateLimit("BOOKING_RATE_LIMITER", ip, bookingLimiter, 5);
         if (!withinLimit) {
             return NextResponse.json(
                 { error: "Too many booking requests. Please try again later." },

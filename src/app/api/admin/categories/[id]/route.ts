@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { categories, services } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const { id: idStr } = await params;
         const { name, description } = await req.json();
@@ -29,6 +33,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const { id: idStr } = await params;
         const id = parseInt(idStr);

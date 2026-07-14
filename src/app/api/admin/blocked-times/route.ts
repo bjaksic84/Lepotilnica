@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { blockedTimes } from "@/db/schema";
 import { blockedTimeSchema } from "@/lib/validators";
 import { and, gte, lte } from "drizzle-orm";
 
 export async function GET(request: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const { searchParams } = new URL(request.url);
         const startDate = searchParams.get("startDate");
@@ -29,6 +33,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const body = await request.json();
         const result = blockedTimeSchema.safeParse(body);

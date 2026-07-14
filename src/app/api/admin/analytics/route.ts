@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { bookings, services } from "@/db/schema";
 import { eq, and, gte, lte, not, sql, desc, count } from "drizzle-orm";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 
 export async function GET() {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const now = new Date();
         const thisMonthStart = format(startOfMonth(now), "yyyy-MM-dd");

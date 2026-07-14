@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { bookings } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { cancelLimiter, getClientIp } from "@/lib/rate-limit";
+import { cancelLimiter, getClientIp, enforceRateLimit } from "@/lib/rate-limit";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -14,7 +14,7 @@ async function loadBooking(
     token: string
 ): Promise<{ error: NextResponse } | { booking: Booking }> {
     const ip = getClientIp(request);
-    const { success: withinLimit } = await cancelLimiter.check(ip, 10);
+    const withinLimit = await enforceRateLimit("CANCEL_RATE_LIMITER", ip, cancelLimiter, 10);
     if (!withinLimit) {
         return {
             error: NextResponse.json(

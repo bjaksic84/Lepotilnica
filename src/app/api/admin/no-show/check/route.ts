@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { noShows } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 // GET /api/admin/no-show/check?email=... — Check if customer is blacklisted
 export async function GET(request: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const { searchParams } = new URL(request.url);
         const email = searchParams.get("email")?.toLowerCase();

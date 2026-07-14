@@ -1,10 +1,17 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
 /**
- * In-memory sliding-window rate limiter.
- * Each limiter tracks requests per IP within a rolling time window.
+ * Rate limiting.
  *
- * Usage:
- *   const limiter = rateLimit({ interval: 60_000, uniqueTokenPerInterval: 500 });
- *   const { success } = await limiter.check(ip, maxRequests);
+ * In production on Cloudflare Workers the authoritative limiter is the native
+ * Rate Limiting binding (configured in wrangler.jsonc). It is enforced at the
+ * edge and shared across requests — unlike the in-memory limiter below, whose
+ * counters live inside a single Worker isolate and reset whenever the isolate
+ * recycles, making it useless as a real control on Workers.
+ *
+ * The in-memory limiter is kept only as a fallback for environments where the
+ * binding is not present (e.g. `next dev`). Use `enforceRateLimit()`, which
+ * prefers the binding and transparently falls back.
  */
 
 interface RateLimitEntry {
@@ -27,29 +34,27 @@ export function rateLimit(config: RateLimitConfig): RateLimiter {
     const { interval, uniqueTokenPerInterval = 500 } = config;
     const tokenCache = new Map<string, RateLimitEntry>();
 
-    // Periodic cleanup to prevent memory leaks
-    const cleanup = () => {
-        const now = Date.now();
+    // Opportunistic cleanup — runs inline only when the cache grows past
+    // capacity. We deliberately avoid a background `setInterval`: long-lived
+    // timers don't fit the Workers request/response model and this limiter is
+    // only a local-dev fallback anyway.
+    const evictIfNeeded = (now: number) => {
+        if (tokenCache.size <= uniqueTokenPerInterval) return;
         for (const [key, entry] of tokenCache) {
-            if (now > entry.resetAt) {
-                tokenCache.delete(key);
-            }
+            if (now > entry.resetAt) tokenCache.delete(key);
         }
-        // Evict oldest entries if we exceed capacity
         if (tokenCache.size > uniqueTokenPerInterval) {
             const entries = [...tokenCache.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt);
-            const toRemove = entries.slice(0, tokenCache.size - uniqueTokenPerInterval);
-            for (const [key] of toRemove) {
+            for (const [key] of entries.slice(0, tokenCache.size - uniqueTokenPerInterval)) {
                 tokenCache.delete(key);
             }
         }
     };
 
-    setInterval(cleanup, interval);
-
     return {
         check: async (token: string, limit: number) => {
             const now = Date.now();
+            evictIfNeeded(now);
             const entry = tokenCache.get(token);
 
             if (!entry || now > entry.resetAt) {
@@ -67,16 +72,10 @@ export function rateLimit(config: RateLimitConfig): RateLimiter {
     };
 }
 
-// Pre-configured limiters for different endpoints
+// Pre-configured in-memory fallback limiters (dev only — see enforceRateLimit).
 // Booking: 5 bookings per 15 minutes per IP
 export const bookingLimiter = rateLimit({
     interval: 15 * 60 * 1000,
-    uniqueTokenPerInterval: 500,
-});
-
-// General API: 60 requests per minute per IP
-export const apiLimiter = rateLimit({
-    interval: 60 * 1000,
     uniqueTokenPerInterval: 500,
 });
 
@@ -92,17 +91,54 @@ export const cancelLimiter = rateLimit({
     uniqueTokenPerInterval: 500,
 });
 
+/** Shape of a Cloudflare Rate Limiting binding (`env.<NAME>.limit(...)`). */
+interface CfRateLimit {
+    limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 /**
- * Helper to extract client IP from request headers (works behind reverse proxies)
+ * Enforce a rate limit for `token` (typically the client IP). Prefers the
+ * Cloudflare native Rate Limiting binding named `binding`; if that binding is
+ * unavailable (local dev, or the Workers context can't be resolved) it falls
+ * back to the in-memory `fallbackLimiter`. Returns true when the request is
+ * within the limit.
+ */
+export async function enforceRateLimit(
+    binding: string,
+    token: string,
+    fallbackLimiter: RateLimiter,
+    fallbackLimit: number
+): Promise<boolean> {
+    try {
+        const env = getCloudflareContext().env as unknown as Record<string, CfRateLimit | undefined>;
+        const limiter = env?.[binding];
+        if (limiter && typeof limiter.limit === "function") {
+            const { success } = await limiter.limit({ key: token });
+            return success;
+        }
+    } catch {
+        // getCloudflareContext() throws outside the Workers runtime (e.g. next dev).
+        // Fall through to the in-memory limiter.
+    }
+    const { success } = await fallbackLimiter.check(token, fallbackLimit);
+    return success;
+}
+
+/**
+ * Extract the client IP. On Cloudflare the edge always sets `CF-Connecting-IP`
+ * and it cannot be spoofed by the client, so it is the only trustworthy source
+ * for rate-limit keys. The x-forwarded-for / x-real-ip fallbacks are for local
+ * dev only and are client-controllable — never rely on them for security.
  */
 export function getClientIp(request: Request): string {
+    const cfIp = request.headers.get("cf-connecting-ip");
+    if (cfIp) return cfIp.trim();
+
     const forwarded = request.headers.get("x-forwarded-for");
-    if (forwarded) {
-        return forwarded.split(",")[0].trim();
-    }
+    if (forwarded) return forwarded.split(",")[0].trim();
+
     const realIp = request.headers.get("x-real-ip");
-    if (realIp) {
-        return realIp;
-    }
+    if (realIp) return realIp.trim();
+
     return "127.0.0.1";
 }

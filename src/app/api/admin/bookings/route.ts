@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { bookings, services } from "@/db/schema";
 import { desc, and, gte, lte, eq } from "drizzle-orm";
 import { multiBookingSchema } from "@/lib/validators";
@@ -7,6 +8,9 @@ import { createBookings } from "@/lib/booking-service";
 import { sendBookingConfirmation } from "@/lib/email";
 
 export async function GET(request: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const { searchParams } = new URL(request.url);
         const weekStart = searchParams.get("weekStart");
@@ -57,6 +61,9 @@ export async function GET(request: Request) {
  * (`sendConfirmation`, default true).
  */
 export async function POST(request: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const body = await request.json();
         const result = multiBookingSchema.safeParse(body);

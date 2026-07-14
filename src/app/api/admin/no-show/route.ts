@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { noShows, bookings, services } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { format } from "date-fns";
 
 // POST /api/admin/no-show — Record a no-show for a booking
 export async function POST(request: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const body = await request.json();
         const { bookingId } = body;
@@ -83,6 +87,9 @@ export async function POST(request: Request) {
 
 // GET /api/admin/no-show — Get all no-show records (for pre-loading blacklist data)
 export async function GET() {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
     try {
         const records = await db.select().from(noShows);
         return NextResponse.json(records);
