@@ -6,6 +6,7 @@ import { desc, and, gte, lte, eq } from "drizzle-orm";
 import { multiBookingSchema } from "@/lib/validators";
 import { createBookings } from "@/lib/booking-service";
 import { sendBookingConfirmation } from "@/lib/email";
+import { runAfterResponse } from "@/lib/after-response";
 
 export async function GET(request: Request) {
     const unauth = await requireAdmin();
@@ -80,18 +81,24 @@ export async function POST(request: Request) {
         }
 
         if (body.sendConfirmation !== false) {
-            sendBookingConfirmation({
-                customerName: result.data.customerName,
-                customerEmail: result.data.customerEmail,
-                date: result.data.date,
-                items: created.created.map((b) => ({
-                    serviceName: b.serviceName,
-                    servicePrice: b.servicePrice,
-                    serviceDuration: b.serviceDuration,
-                    time: b.time,
-                    cancellationToken: b.cancellationToken,
-                })),
-            }).catch((err) => console.error("[Email] Background send failed:", err));
+            // See runAfterResponse: on Workers a floating promise is cancelled
+            // when the response is returned, which dropped the e-mail entirely.
+            await runAfterResponse(
+                sendBookingConfirmation({
+                    customerName: result.data.customerName,
+                    customerEmail: result.data.customerEmail,
+                    date: result.data.date,
+                    items: created.created.map((b) => ({
+                        serviceName: b.serviceName,
+                        servicePrice: b.servicePrice,
+                        serviceDuration: b.serviceDuration,
+                        time: b.time,
+                        cancellationToken: b.cancellationToken,
+                    })),
+                }).then((res) => {
+                    if (!res.success) console.error("[Email] Send failed:", res.error);
+                }).catch((err) => console.error("[Email] Background send failed:", err))
+            );
         }
 
         return NextResponse.json(created.created, { status: 201 });
