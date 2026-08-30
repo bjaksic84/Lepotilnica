@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { format, isSameDay } from "date-fns";
 import { sl } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1210,6 +1211,21 @@ function BookingContent() {
                                             </span>
                                         )}
                                     </button>
+
+                                    {/* GDPR Art. 13 requires that the purpose of the
+                                        collection is disclosed at the point of collection,
+                                        not only buried in the footer. */}
+                                    <p className="text-xs text-charcoal/40 text-center leading-relaxed pt-1">
+                                        Z oddajo rezervacije se strinjate, da vaše ime, e-pošto in telefonsko
+                                        številko uporabimo za potrditev in izvedbo termina. Več v{" "}
+                                        <Link
+                                            href="/zasebnost"
+                                            className="text-charcoal/60 underline underline-offset-2 hover:text-gold-dark transition-colors"
+                                        >
+                                            politiki zasebnosti
+                                        </Link>
+                                        .
+                                    </p>
                                 </form>
                             </motion.div>
                         )}

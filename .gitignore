@@ -44,3 +44,6 @@ ws-server/target/
 
 # wrangler local secrets
 .dev.vars
+
+# local dev database
+sqlite.db

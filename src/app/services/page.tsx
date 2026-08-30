@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
     title: "Storitve",
-    description: "Odkrijte celoten meni premium lepotnih storitev — nega obraza, podaljševanje trepalnic, manikura, masaže in več v Lepotilnici by Karin v Ljubljani.",
+    description: "Celoten cenik lepotnih storitev v Lepotilnici by Karin v Ljubljani — nega obraza, manikura, pedikura, depilacija, obrvi in trepalnice, masaže, biomicroneedling in oblikovanje telesa.",
     openGraph: {
         title: "Storitve — Lepotilnica by Karin",
         description: "Celoten meni premium lepotnih storitev v Ljubljani.",

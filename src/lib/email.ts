@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { SITE_URL } from "@/lib/site";
+import { SITE_URL, BUSINESS, BUSINESS_ADDRESS_LINE, SITE_NAME } from "@/lib/site";
 
 // Lazily construct the Resend client so importing this module is side-effect
 // free. `new Resend()` throws when RESEND_API_KEY is missing, which would break
@@ -13,7 +13,12 @@ function getResend(): Resend {
     return _resend;
 }
 
-const FROM_EMAIL = "Lepotilnica by Karin <onboarding@resend.dev>";
+const FROM_EMAIL = `${SITE_NAME} <noreply@send.lepotilnicabykarin.si>`;
+
+// Replies to the automated `noreply@send.` address go nowhere, so every send
+// routes answers to the public inbox, which Cloudflare Email Routing forwards
+// on to Karin.
+const REPLY_TO = BUSINESS.email;
 
 interface BookingEmailItem {
     serviceName: string;
@@ -33,12 +38,24 @@ interface BookingEmailData {
 function formatDate(dateStr: string): string {
     const [year, month, day] = dateStr.split("-");
     const date = new Date(Number(year), Number(month) - 1, Number(day));
-    return date.toLocaleDateString("en-US", {
+    return date.toLocaleDateString("sl-SI", {
         weekday: "long",
         year: "numeric",
         month: "long",
         day: "numeric",
     });
+}
+
+/**
+ * Slovenian has four plural forms keyed on n mod 100: 1 → ena storitev,
+ * 2 → dve storitvi, 3–4 → tri storitve, everything else → pet storitev.
+ */
+function pluralServices(count: number): string {
+    const mod100 = count % 100;
+    if (mod100 === 1) return `${count} storitev`;
+    if (mod100 === 2) return `${count} storitvi`;
+    if (mod100 === 3 || mod100 === 4) return `${count} storitve`;
+    return `${count} storitev`;
 }
 
 function formatPrice(euros: number): string {
@@ -65,7 +82,7 @@ function buildConfirmationHtml(data: BookingEmailData): string {
                           </div>
                         </td>
                         <td valign="top">
-                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Service</p>
+                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Storitev</p>
                           <p style="margin:4px 0 0;font-size:16px;color:#1a1a1a;font-weight:600;">${item.serviceName}</p>
                           <p style="margin:2px 0 0;font-size:13px;color:#555;">${item.time} · ${item.serviceDuration} min · ${formatPrice(item.servicePrice)}</p>
                         </td>
@@ -76,17 +93,17 @@ function buildConfirmationHtml(data: BookingEmailData): string {
         const cancelUrl = getCancelUrl(item.cancellationToken);
         return `
                     <a href="${cancelUrl}" style="display:inline-block;margin:4px 4px;padding:10px 24px;background:#1a1a1a;color:#ffffff;text-decoration:none;border-radius:50px;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">
-                      Cancel ${isSingle ? 'Appointment' : item.serviceName}
+                      ${isSingle ? 'Odpovej termin' : `Odpovej: ${item.serviceName}`}
                     </a>`;
     }).join('\n');
 
     return `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Booking Confirmation</title>
+  <title>Potrditev rezervacije</title>
 </head>
 <body style="margin:0;padding:0;background-color:#faf5f0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf5f0;padding:40px 20px;">
@@ -110,13 +127,13 @@ function buildConfirmationHtml(data: BookingEmailData): string {
           <tr>
             <td style="padding:36px 40px 0;">
               <p style="margin:0;font-size:14px;color:#888;text-transform:uppercase;letter-spacing:2px;">
-                Booking Confirmed
+                Rezervacija potrjena
               </p>
               <h2 style="margin:8px 0 0;font-size:24px;color:#1a1a1a;font-family:Georgia,'Times New Roman',serif;font-weight:400;">
-                Hello, ${data.customerName}!
+                Pozdravljeni, ${data.customerName}!
               </h2>
               <p style="margin:12px 0 0;font-size:15px;color:#555;line-height:1.6;">
-                Your appointment${isSingle ? '' : 's'} ha${isSingle ? 's' : 've'} been confirmed. We look forward to seeing you!
+                ${isSingle ? 'Vaš termin je potrjen.' : 'Vaši termini so potrjeni.'} Veselimo se vašega obiska!
               </p>
             </td>
           </tr>
@@ -138,9 +155,9 @@ function buildConfirmationHtml(data: BookingEmailData): string {
                           </div>
                         </td>
                         <td valign="top">
-                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Date</p>
+                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Datum</p>
                           <p style="margin:4px 0 0;font-size:16px;color:#1a1a1a;font-weight:600;">${formattedDate}</p>
-                          <p style="margin:2px 0 0;font-size:14px;color:#555;">Starting at ${data.items[0].time} · ${totalDuration} minutes total</p>
+                          <p style="margin:2px 0 0;font-size:14px;color:#555;">Začetek ob ${data.items[0].time} · skupaj ${totalDuration} minut</p>
                         </td>
                       </tr>
                     </table>
@@ -154,7 +171,7 @@ function buildConfirmationHtml(data: BookingEmailData): string {
                           </div>
                         </td>
                         <td valign="top">
-                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Total Price</p>
+                          <p style="margin:0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Za plačilo v salonu</p>
                           <p style="margin:4px 0 0;font-size:20px;color:#1a1a1a;font-weight:700;">${formatPrice(totalPrice)}</p>
                         </td>
                       </tr>
@@ -172,7 +189,7 @@ function buildConfirmationHtml(data: BookingEmailData): string {
                 <tr>
                   <td style="padding:24px;text-align:center;">
                     <p style="margin:0 0 6px;font-size:13px;color:#888;line-height:1.5;">
-                      Need to cancel? You can cancel up to <strong style="color:#1a1a1a;">24 hours</strong> before your appointment.
+                      Ne morete priti? Termin lahko odpoveste najpozneje <strong style="color:#1a1a1a;">24 ur</strong> pred začetkom.
                     </p>
                     ${cancelLinksHtml}
                   </td>
@@ -192,11 +209,17 @@ function buildConfirmationHtml(data: BookingEmailData): string {
           <tr>
             <td style="padding:28px 40px 36px;text-align:center;">
               <p style="margin:0;font-size:12px;color:#aaa;line-height:1.8;">
-                Lepotilnica by Karin<br/>
-                This is an automated confirmation email. Please do not reply.<br/>
+                <strong style="color:#888;">${SITE_NAME}</strong><br/>
+                ${BUSINESS_ADDRESS_LINE}<br/>
+                <a href="tel:${BUSINESS.phone}" style="color:#aaa;text-decoration:none;">${BUSINESS.phoneDisplay}</a>
+                &nbsp;·&nbsp;
+                <a href="mailto:${BUSINESS.email}" style="color:#aaa;text-decoration:none;">${BUSINESS.email}</a>
+              </p>
+              <p style="margin:12px 0 0;font-size:12px;color:#aaa;line-height:1.6;">
+                To sporočilo je poslano samodejno. Če imate vprašanje, lahko nanj preprosto odgovorite.
               </p>
               <p style="margin:12px 0 0;font-size:11px;color:#ccc;">
-                © ${new Date().getFullYear()} Lepotilnica by Karin. All rights reserved.
+                © ${new Date().getFullYear()} ${SITE_NAME}. Vse pravice pridržane.
               </p>
             </td>
           </tr>
@@ -214,12 +237,13 @@ export async function sendBookingConfirmation(data: BookingEmailData): Promise<{
         const isSingle = data.items.length === 1;
         const subjectService = isSingle
             ? data.items[0].serviceName
-            : `${data.items.length} services`;
+            : pluralServices(data.items.length);
 
         const { error } = await getResend().emails.send({
             from: FROM_EMAIL,
+            replyTo: REPLY_TO,
             to: [data.customerEmail],
-            subject: `Booking Confirmed – ${subjectService} on ${formatDate(data.date)}`,
+            subject: `Rezervacija potrjena – ${subjectService}, ${formatDate(data.date)}`,
             html: buildConfirmationHtml(data),
         });
 

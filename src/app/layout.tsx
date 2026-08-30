@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
-import { SITE_URL, SITE_NAME } from "@/lib/site";
+import { SITE_URL, SITE_NAME, BUSINESS, SOCIAL_LINKS, OPENING_HOURS, SERVICE_CATEGORIES } from "@/lib/site";
 import { jsonLdScript } from "@/lib/json-ld";
 import "./globals.css";
 
@@ -21,27 +21,29 @@ export const metadata: Metadata = {
     template: "%s | Lepotilnica by Karin",
   },
   description:
-    "Odkrijte prestižne lepotne tretmaje v Lepotilnici by Karin — ekskluzivnem kozmetičnem salonu v Ljubljani. Strokovna nega obraza, podaljševanje trepalnic, oblikovanje obrvi in več. Rezervirajte svoj termin na spletu.",
+    "Kozmetični salon v Ljubljani — nega obraza, manikura in pedikura, depilacija, laminacija obrvi, masaže in biomicroneedling. Rezervirajte termin na spletu.",
+  // Keywords are ignored by Google, but they must not contradict the catalogue:
+  // these mirror the real service list in the database.
   keywords: [
-    "beauty salon Ljubljana",
     "kozmetični salon Ljubljana",
     "lepotilnica",
-    "facial treatments",
-    "lash extensions",
-    "brow styling",
-    "beauty treatments Slovenia",
-    "Karin beauty",
-    "online booking beauty salon",
-    "kozmetika Ljubljana",
     "nega obraza Ljubljana",
-    "podaljšanje trepalnic Ljubljana",
     "manikura Ljubljana",
+    "BIAB manikura",
     "pedikura Ljubljana",
-    "lepotni salon",
-    "naročanje online kozmetika",
-    "beauty salon Slovenia",
+    "trajno lakiranje Ljubljana",
+    "depilacija Ljubljana",
+    "brazilska depilacija",
+    "laminacija obrvi Ljubljana",
+    "oblikovanje obrvi",
+    "keratinsko vihanje trepalnic",
+    "barvanje trepalnic",
+    "biomicroneedling Ljubljana",
+    "maderoterapija Ljubljana",
+    "presoterapija",
+    "masaža Ljubljana",
     "salon lepote Ljubljana",
-    "trajno lakiranje",
+    "naročanje online kozmetika",
   ],
   applicationName: SITE_NAME,
   authors: [{ name: "Lepotilnica by Karin" }],
@@ -57,7 +59,7 @@ export const metadata: Metadata = {
     siteName: "Lepotilnica by Karin",
     title: "Lepotilnica by Karin | Prestižni kozmetični salon v Ljubljani",
     description:
-      "Izkušnja prestižnih lepotnih tretmajev v svetišču elegance. Strokovna nega obraza, podaljševanje trepalnic, oblikovanje obrvi in več.",
+      "Izkušnja prestižnih lepotnih tretmajev v svetišču elegance. Nega obraza, manikura in pedikura, depilacija, obrvi, masaže in biomicroneedling.",
     images: [
       {
         url: "/og-image.png",
@@ -87,10 +89,6 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: "/",
-    languages: {
-      "sl-SI": "/",
-      "x-default": "/",
-    },
   },
 };
 
@@ -117,48 +115,34 @@ function JsonLd() {
     name: "Lepotilnica by Karin",
     alternateName: "Lepotilnica",
     description:
-      "Prestižni kozmetični salon, ki nudi strokovne nege obraza, podaljševanje trepalnic, oblikovanje obrvi in še več v Ljubljani, Slovenija.",
+      "Prestižni kozmetični salon v Ljubljani: nege obraza, manikura in pedikura, depilacija, laminacija in oblikovanje obrvi, tretmaji trepalnic, masaže, biomicroneedling in oblikovanje telesa.",
     url: baseUrl,
     logo: `${baseUrl}/logo.png`,
     image: [
       `${baseUrl}/og-image.png`,
       `${baseUrl}/about-karin.jpeg`,
     ],
-    telephone: "+386 1 234 5678",
-    email: "info@lepotilnica.si",
+    telephone: BUSINESS.phone,
+    email: BUSINESS.email,
     address: {
       "@type": "PostalAddress",
-      streetAddress: "Mestni trg 1",
-      addressLocality: "Ljubljana",
-      postalCode: "1000",
-      addressRegion: "Ljubljana",
-      addressCountry: "SI",
+      streetAddress: BUSINESS.street,
+      addressLocality: BUSINESS.city,
+      postalCode: BUSINESS.postalCode,
+      addressRegion: BUSINESS.city,
+      addressCountry: BUSINESS.country,
     },
     geo: {
       "@type": "GeoCoordinates",
-      latitude: 46.0511,
-      longitude: 14.5051,
+      latitude: BUSINESS.geo.latitude,
+      longitude: BUSINESS.geo.longitude,
     },
-    openingHoursSpecification: [
-      {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday"],
-        opens: "09:00",
-        closes: "20:00",
-      },
-      {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: ["Friday"],
-        opens: "09:00",
-        closes: "18:00",
-      },
-      {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: ["Saturday"],
-        opens: "10:00",
-        closes: "18:00",
-      },
-    ],
+    openingHoursSpecification: OPENING_HOURS.map((h) => ({
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: [...h.days],
+      opens: h.opens,
+      closes: h.closes,
+    })),
     priceRange: "€€",
     currenciesAccepted: "EUR",
     paymentAccepted: "Gotovina, plačilna kartica",
@@ -167,49 +151,19 @@ function JsonLd() {
       name: "Ljubljana",
       "@id": "https://www.wikidata.org/wiki/Q437",
     },
+    // Top-level categories only — these mirror the `categories` table and must
+    // stay truthful. /services emits the full per-service OfferCatalog straight
+    // from the database; this is the summary that hangs off the salon entity.
     hasOfferCatalog: {
       "@type": "OfferCatalog",
       name: "Lepotni tretmaji",
-      itemListElement: [
-        {
-          "@type": "OfferCatalog",
-          name: "Nega obraza",
-          itemListElement: [
-            {
-              "@type": "Offer",
-              itemOffered: {
-                "@type": "Service",
-                name: "Vrhunska nega obraza",
-                description: "Strokovne negovalne terapije za sijočo in zdravo kožo",
-              },
-            },
-          ],
-        },
-        {
-          "@type": "OfferCatalog",
-          name: "Trepalnice in obrvi",
-          itemListElement: [
-            {
-              "@type": "Offer",
-              itemOffered: {
-                "@type": "Service",
-                name: "Podaljševanje trepalnic",
-                description: "Strokovna aplikacija podaljškov trepalnic",
-              },
-            },
-            {
-              "@type": "Offer",
-              itemOffered: {
-                "@type": "Service",
-                name: "Oblikovanje obrvi",
-                description: "Strokovno oblikovanje in urejanje obrvi",
-              },
-            },
-          ],
-        },
-      ],
+      itemListElement: SERVICE_CATEGORIES.map((name) => ({
+        "@type": "OfferCatalog",
+        name,
+        url: `${baseUrl}/services`,
+      })),
     },
-    sameAs: [],
+    sameAs: [SOCIAL_LINKS.google, SOCIAL_LINKS.instagram, SOCIAL_LINKS.facebook],
   };
 
   const website = {
@@ -223,70 +177,11 @@ function JsonLd() {
     inLanguage: "sl-SI",
   };
 
-  const breadcrumb = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Domov",
-        item: baseUrl,
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Storitve",
-        item: `${baseUrl}/services`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: "Rezervacija",
-        item: `${baseUrl}/book`,
-      },
-    ],
-  };
-
-  const faq = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: [
-      {
-        "@type": "Question",
-        name: "Kako rezerviram termin v Lepotilnici?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Termin lahko rezervirate enostavno preko naše spletne strani na strani 'Rezervacija'. Izberite želeno storitev, datum in čas, ter potrdite rezervacijo.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Kje se nahaja Lepotilnica by Karin?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Nahajamo se na Mestni trg 1, 1000 Ljubljana, Slovenija. Smo v samem srcu Ljubljane.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Kakšne storitve ponujate?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Ponujamo širok nabor lepotnih storitev, vključno z negami obraza, podaljševanjem trepalnic, oblikovanjem obrvi, manikuro, pedikuro in še več.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "Ali lahko odpovem termin?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Da, termin lahko odpoveste preko povezave v potrditvenem e-mailu, ki ga prejmete po uspešni rezervaciji.",
-        },
-      },
-    ],
-  };
-
+  // Only site-wide entities belong here. BreadcrumbList and FAQPage are
+  // per-page facts and now live on the routes they actually describe —
+  // emitting them from the layout put a 3-level breadcrumb and an FAQ on every
+  // page, including /book and /admin, and produced two conflicting
+  // BreadcrumbList nodes on /services.
   return (
     <>
       <script
@@ -296,14 +191,6 @@ function JsonLd() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(website) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumb) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: jsonLdScript(faq) }}
       />
     </>
   );

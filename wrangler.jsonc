@@ -4,6 +4,11 @@
     "main": ".open-next/worker.js",
     "compatibility_date": "2025-03-01",
     "compatibility_flags": ["nodejs_compat"],
+    // The site is served from the custom domain lepotilnicabykarin.si (attached
+    // via the Cloudflare dashboard). Disable the *.workers.dev host so the same
+    // content isn't reachable on two origins — Google treats that as duplicate
+    // content and it competes with the apex domain for ranking signals.
+    "workers_dev": false,
     "assets": {
         "directory": ".open-next/assets",
         "binding": "ASSETS"

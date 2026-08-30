@@ -39,9 +39,15 @@ export default function Hero() {
                     <span className="w-8 h-px bg-gold/60" />
                 </motion.span>
 
+                {/* This h1 is the page's LCP element, so it must NOT animate from
+                    opacity:0 — framer-motion server-renders the initial state, and a
+                    transparent element is not counted as painted, which pushed LCP out
+                    until React had hydrated. Animating only the transform keeps the
+                    entrance motion while letting the text count as painted on first
+                    paint (transforms also don't contribute to CLS). */}
                 <motion.h1
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ y: 24 }}
+                    animate={{ y: 0 }}
                     transition={{ duration: 0.9, ease: "easeOut", delay: 0.1 }}
                     className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-playfair text-charcoal mb-8 leading-[1.05] tracking-tight [overflow-wrap:anywhere]"
                 >

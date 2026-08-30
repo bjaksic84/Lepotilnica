@@ -3,7 +3,8 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { FAQ_ITEMS } from "@/lib/faq";
 
 type Service = {
     id: number;
@@ -193,7 +194,7 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                         >
                             <Image
                                 src="/about-karin.jpeg"
-                                alt="Karin — founder and beauty expert at Lepotilnica"
+                                alt="Urejena tretmajska miza z brisačo in masažnim oljem v salonu Lepotilnica by Karin v Ljubljani"
                                 fill
                                 className="object-cover"
                                 sizes="(max-width: 768px) 100vw, 50vw"
@@ -264,6 +265,90 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                     </motion.div>
                 </div>
             </section>
+
+            <FaqSection />
         </>
+    );
+}
+
+/**
+ * Renders the same questions that the homepage emits as FAQPage JSON-LD.
+ * Google only surfaces FAQ rich results when the marked-up Q&A is visible on
+ * the page, so this section and `FAQ_ITEMS` must stay in sync — both read from
+ * the same source in `src/lib/faq.ts`.
+ */
+function FaqSection() {
+    const [openIndex, setOpenIndex] = useState<number | null>(0);
+
+    return (
+        <section id="faq" className="py-32 bg-porcelain relative overflow-hidden">
+            <div className="absolute top-1/4 right-0 w-[500px] h-[500px] rounded-full opacity-20 pointer-events-none translate-x-1/3"
+                style={{ background: "radial-gradient(circle, rgba(232,213,213,0.35) 0%, transparent 70%)" }} />
+
+            <div className="container mx-auto px-4 max-w-3xl relative z-10">
+                <motion.div
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    className="text-center mb-16"
+                >
+                    <div className="w-12 h-px bg-gold mb-6 mx-auto" />
+                    <h2 className="text-4xl md:text-5xl font-playfair font-bold text-charcoal leading-[1.05]">
+                        Pogosta vprašanja
+                    </h2>
+                </motion.div>
+
+                <div className="divide-y divide-dusty-rose/30 border-y border-dusty-rose/30">
+                    {FAQ_ITEMS.map((item, i) => {
+                        const isOpen = openIndex === i;
+                        return (
+                            <div key={item.question}>
+                                <h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setOpenIndex(isOpen ? null : i)}
+                                        aria-expanded={isOpen}
+                                        aria-controls={`faq-answer-${i}`}
+                                        className="w-full flex items-center justify-between gap-6 py-6 text-left group"
+                                    >
+                                        <span className="font-playfair text-lg md:text-xl text-charcoal group-hover:text-gold-dark transition-colors">
+                                            {item.question}
+                                        </span>
+                                        <svg
+                                            className={`w-5 h-5 shrink-0 text-gold transition-transform duration-300 ${isOpen ? "rotate-45" : ""}`}
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                            aria-hidden="true"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                    </button>
+                                </h3>
+                                {/* Kept in the DOM rather than conditionally rendered so the
+                                    answer text is always present for crawlers. */}
+                                <div
+                                    id={`faq-answer-${i}`}
+                                    hidden={!isOpen}
+                                    className="pb-6 -mt-1 text-charcoal/60 leading-relaxed font-light"
+                                >
+                                    {item.answer}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="text-center mt-14">
+                    <p className="text-charcoal/50 font-light mb-6">
+                        Imate vprašanje, ki ga ni na seznamu?
+                    </p>
+                    <Link href="/book" className="btn-primary">
+                        Rezerviraj termin
+                    </Link>
+                </div>
+            </div>
+        </section>
     );
 }

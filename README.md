@@ -11,7 +11,7 @@
 
 Customers can browse services, book appointments online, and manage cancellations — while the salon owner gets an auto-refreshing admin dashboard with analytics, customer logs, and complete booking control.
 
-> **Live:** [lepotilnica.jaksicbojan1.workers.dev](https://lepotilnica.jaksicbojan1.workers.dev)
+> **Live:** [lepotilnicabykarin.si](https://lepotilnicabykarin.si)
 
 ---
 
@@ -152,7 +152,7 @@ cp .env.example .env
 | `TURSO_DATABASE_URL` | Turso database URL (`libsql://...turso.io`) |
 | `TURSO_AUTH_TOKEN` | Auth token from `turso db tokens create <db>` |
 | `ADMIN_PASSWORD` | Password for the admin login page |
-| `NEXT_PUBLIC_BASE_URL` | Public site URL — used for SEO, sitemap & email links (e.g. `https://lepotilnica.jaksicbojan1.workers.dev`). Inlined at build time. |
+| `NEXT_PUBLIC_BASE_URL` | Public site URL — used for SEO, sitemap & email links (e.g. `https://lepotilnicabykarin.si`). Inlined at build time. |
 | `RESEND_API_KEY` | [Resend](https://resend.com/) API key for transactional emails |
 
 ### 3. Push the database schema
@@ -271,7 +271,7 @@ npm run preview   # build + run the Workers bundle locally
 npm run deploy     # build + deploy to Cloudflare
 ```
 
-The live deployment is served at **[lepotilnica.jaksicbojan1.workers.dev](https://lepotilnica.jaksicbojan1.workers.dev)**.
+The live deployment is served at **[lepotilnicabykarin.si](https://lepotilnicabykarin.si)**.
 
 ---
 
