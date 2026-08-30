@@ -1,15 +1,27 @@
+/** The domain the site is actually served from, and the only valid canonical. */
+const PRODUCTION_URL = "https://lepotilnicabykarin.si";
+
 /**
  * Canonical site URL — the single source of truth for SEO metadata, the
  * sitemap, robots rules, JSON-LD structured data and transactional email links.
  *
- * NEXT_PUBLIC_* vars are inlined at build time, so NEXT_PUBLIC_BASE_URL must be
- * set in the build environment. The fallback is the production apex domain — not
- * the workers.dev host — so a build with a missing env var can never emit
- * canonical / Open Graph / sitemap URLs that point away from the real domain.
+ * NEXT_PUBLIC_* vars are inlined at build time, so NEXT_PUBLIC_BASE_URL has to
+ * be right in the *build* environment — setting it at runtime does nothing.
+ * A stale `NEXT_PUBLIC_BASE_URL=…workers.dev` left over in the Cloudflare
+ * Workers Builds settings silently overrode this and shipped a production build
+ * whose canonicals all pointed at the retired host, so a `*.workers.dev` value
+ * is now explicitly rejected rather than trusted: that host no longer serves
+ * the site (`workers_dev: false`), which makes it never a legitimate base URL.
+ * Any other override is still honoured for local dev and previews.
  */
-export const SITE_URL = (
-    process.env.NEXT_PUBLIC_BASE_URL || "https://lepotilnicabykarin.si"
-).replace(/\/+$/, "");
+function resolveSiteUrl(): string {
+    const configured = process.env.NEXT_PUBLIC_BASE_URL?.trim();
+    if (!configured) return PRODUCTION_URL;
+    if (/\.workers\.dev$/i.test(configured.replace(/\/+$/, ""))) return PRODUCTION_URL;
+    return configured;
+}
+
+export const SITE_URL = resolveSiteUrl().replace(/\/+$/, "");
 
 export const SITE_NAME = "Lepotilnica by Karin";
 
