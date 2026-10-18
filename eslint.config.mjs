@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Cloudflare build output and local wrangler state. Both are generated and
+    // gitignored, but eslint-config-next doesn't know about them: after any
+    // `npm run deploy` the bundled worker in .open-next alone reported 713
+    // errors, which drowns out everything in src/ and makes lint worthless.
+    ".open-next/**",
+    ".wrangler/**",
   ]),
 ]);
 

@@ -443,10 +443,17 @@ export async function sendEnquiry(
     data: EnquiryEmailData
 ): Promise<{ success: boolean; error?: string }> {
     try {
+        // Enquiries normally land in the salon's own inbox. ENQUIRY_TO_EMAIL
+        // redirects them, which is what makes it possible to exercise the live
+        // send without mailing Karin, and lets her move enquiries to a
+        // different address later without a code change. Read per call rather
+        // than at module scope: on Workers the env is injected per request.
+        const enquiryTo = process.env.ENQUIRY_TO_EMAIL?.trim() || BUSINESS.email;
+
         const { error } = await getResend().emails.send({
             from: FROM_EMAIL,
             replyTo: data.email,
-            to: [BUSINESS.email],
+            to: [enquiryTo],
             subject: `Povpraševanje s spletne strani — ${data.name}${data.topic ? ` (${data.topic})` : ""}`,
             html: buildEnquiryHtml(data),
         });

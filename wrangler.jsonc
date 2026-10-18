@@ -21,10 +21,15 @@
         "directory": ".open-next/assets",
         "binding": "ASSETS"
     },
-    // Native Rate Limiting bindings (enforced at the edge, shared across
-    // requests). namespace_id is just a unique logical id — no provisioning
-    // needed. period must be 10 or 60 (seconds). Consumed via enforceRateLimit()
-    // in src/lib/rate-limit.ts.
+    // Native Rate Limiting bindings. namespace_id is just a unique logical id —
+    // no provisioning needed. period must be 10 or 60 (seconds). Consumed via
+    // enforceRateLimit() in src/lib/rate-limit.ts.
+    //
+    // These limits are APPROXIMATE and leak badly in production — 20 requests
+    // at 1/second got past AUTH_RATE_LIMITER's 8/60s untouched. See the KNOWN
+    // LIMITATION block in src/lib/rate-limit.ts for the measurements. Lowering
+    // a number here does not make it enforceable, it only changes the nominal
+    // figure, so don't reach for that as a fix.
     "ratelimits": [
         { "name": "AUTH_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 8, "period": 60 } },
         { "name": "BOOKING_RATE_LIMITER", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } },

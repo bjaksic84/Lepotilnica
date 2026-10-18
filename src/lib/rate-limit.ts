@@ -3,15 +3,37 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 /**
  * Rate limiting.
  *
- * In production on Cloudflare Workers the authoritative limiter is the native
- * Rate Limiting binding (configured in wrangler.jsonc). It is enforced at the
- * edge and shared across requests — unlike the in-memory limiter below, whose
- * counters live inside a single Worker isolate and reset whenever the isolate
- * recycles, making it useless as a real control on Workers.
+ * In production on Cloudflare Workers the limiter is the native Rate Limiting
+ * binding (configured in wrangler.jsonc). The in-memory limiter below is kept
+ * only as a fallback for environments where the binding is not present (e.g.
+ * `next dev`); its counters live inside a single Worker isolate and reset
+ * whenever the isolate recycles, so it is not a real control on Workers. Use
+ * `enforceRateLimit()`, which prefers the binding and falls back.
  *
- * The in-memory limiter is kept only as a fallback for environments where the
- * binding is not present (e.g. `next dev`). Use `enforceRateLimit()`, which
- * prefers the binding and transparently falls back.
+ * KNOWN LIMITATION — the binding is approximate, not a quota.
+ *
+ * Cloudflare documents it as permissive and eventually consistent, and
+ * explicitly "not intended for use as an accurate accounting system". The
+ * counter is cached on the individual machine serving the request and
+ * reconciled asynchronously with a per-location store, so a real client can
+ * run well past the configured limit before anything is refused.
+ *
+ * Measured against this Worker, with AUTH_RATE_LIMITER set to 8 per 60s:
+ *
+ *   20 requests at 1/second   ->  0 refused
+ *   30 requests back-to-back  ->  0 refused
+ *   14 requests, logged       ->  limit() returned success:true every time
+ *
+ * The same binding refuses correctly under `opennextjs-cloudflare preview`
+ * (the 9th request, exactly as configured), because one local server is one
+ * location and one machine, so the count there is exact. Passing locally
+ * therefore says nothing about production. See
+ * https://github.com/cloudflare/workers-sdk/issues/16097
+ *
+ * Consequence: treat these limits as coarse throttling that trims casual
+ * abuse, and do NOT rely on them where exact counting matters. Admin login is
+ * single-factor, so brute-force protection there needs an exact mechanism
+ * (a Durable Object, or an attempt counter in the database) rather than this.
  */
 
 interface RateLimitEntry {
@@ -109,12 +131,30 @@ interface CfRateLimit {
  * back to the in-memory `fallbackLimiter`. Returns true when the request is
  * within the limit.
  */
+/**
+ * One log line per distinct problem per isolate. Without this the diagnostics
+ * below would print on every single request to a rate-limited route.
+ */
+const reported = new Set<string>();
+function reportOnce(key: string, message: string): void {
+    if (reported.has(key)) return;
+    reported.add(key);
+    console.error(message);
+}
+
 export async function enforceRateLimit(
     binding: string,
     token: string,
     fallbackLimiter: RateLimiter,
     fallbackLimit: number
 ): Promise<boolean> {
+    // This used to swallow every failure with a bare `catch {}`, which hid a
+    // live hole: the bindings were attached to the Worker, the limiter was
+    // never consulted, and all four routes ran with no effective limit at all.
+    // Nothing surfaced, because falling back looks identical to succeeding.
+    // Degrading to the in-memory limiter is a real loss of protection on
+    // Workers — its counters live in one isolate — so every path that gets
+    // there now says so out loud.
     try {
         const env = getCloudflareContext().env as unknown as Record<string, CfRateLimit | undefined>;
         const limiter = env?.[binding];
@@ -122,9 +162,21 @@ export async function enforceRateLimit(
             const { success } = await limiter.limit({ key: token });
             return success;
         }
-    } catch {
-        // getCloudflareContext() throws outside the Workers runtime (e.g. next dev).
-        // Fall through to the in-memory limiter.
+        reportOnce(
+            `missing:${binding}`,
+            `[RateLimit] Binding ${binding} is not present on env — falling back to the ` +
+                `per-isolate limiter, which does not actually limit on Workers. ` +
+                `env keys: ${env ? Object.keys(env).join(", ") || "(none)" : "(env is " + String(env) + ")"}`
+        );
+    } catch (err) {
+        // getCloudflareContext() throws outside the Workers runtime (e.g. next
+        // dev), which is expected and benign. In the deployed Worker it is not.
+        reportOnce(
+            `threw:${binding}`,
+            `[RateLimit] Could not resolve the Workers context for ${binding}: ` +
+                `${err instanceof Error ? err.message : String(err)} — falling back to the ` +
+                `per-isolate limiter, which does not actually limit on Workers.`
+        );
     }
     const { success } = await fallbackLimiter.check(token, fallbackLimit);
     return success;
