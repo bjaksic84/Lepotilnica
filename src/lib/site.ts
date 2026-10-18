@@ -52,9 +52,11 @@ export const BUSINESS = {
      * Embassy building, 27 m west of the salon. The coordinates below resolve
      * to Poljanski nasip 8, the Spar building the salon is actually in.
      *
-     * The Google Business Profile listing still carries the old pin. Local
-     * search ranking depends on the site and the profile agreeing, so the
-     * profile needs moving to match — until then the two disagree by that 27 m.
+     * The Google Business Profile listing has since been corrected to match, so
+     * the site and the profile now agree — which is what local search ranking
+     * depends on. Note the place URL in SOCIAL_LINKS.google below still spells
+     * out the old coordinates; that is Google's own permalink and the listing
+     * it points at is current, so it is left alone.
      */
     geo: { latitude: 46.0515692, longitude: 14.5120902 },
 } as const;
@@ -72,6 +74,25 @@ export const SOCIAL_LINKS = {
     instagram: "https://www.instagram.com/lepotilnicabykarin",
     facebook: "https://www.facebook.com/p/Lepotilnica-by-Karin-61572537894739/",
 } as const;
+
+/**
+ * Google's identifier for the salon's own Maps listing. It is the second half
+ * of the `!1s0x47652d90d155ef2b:0x97cb55495dc192c6` feature id in
+ * SOCIAL_LINKS.google above, converted from hex to decimal.
+ *
+ * Used to point the embedded map at the business rather than at the street.
+ * Google's keyless embed takes a query, and asking it for the address alone
+ * resolves to the address alone — so the "Odprite v Zemljevidih" button that
+ * Google renders *inside* the iframe opened "Poljanski nasip 8" rather than
+ * Lepotilnica. We cannot set that button's link ourselves (it is Google's
+ * markup, cross-origin), but it inherits whatever the embed resolved to, so
+ * naming the listing here fixes it.
+ *
+ * Querying by business name also resolves correctly, but that is a text search
+ * which could drift if a similarly-named salon opens nearby. A CID names this
+ * one listing and nothing else.
+ */
+export const GOOGLE_MAPS_CID = "10937929893593322182";
 
 /**
  * Top-level service categories, mirroring the `categories` table. Used for the

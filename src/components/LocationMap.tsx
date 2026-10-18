@@ -1,6 +1,7 @@
 import {
     BUSINESS,
     BUSINESS_ADDRESS_LINE,
+    GOOGLE_MAPS_CID,
     OPENING_HOURS_DISPLAY,
     ONLINE_BOOKING_WINDOW,
     SITE_NAME,
@@ -10,17 +11,21 @@ import {
  * Location block with an embedded map.
  *
  * The map is Google's keyless `output=embed` endpoint — no API key, no billing
- * account and no per-load quota, unlike Maps JavaScript API or Embed API. The
- * trade-off is that it takes a query string rather than coordinates, so the
- * pin is only as good as the address resolves; the address is passed rather
- * than `BUSINESS.geo` deliberately, because that coordinate still points at
- * the previous street number.
+ * account and no per-load quota, unlike Maps JavaScript API or Embed API.
+ *
+ * It is addressed by CID, the id of the salon's own Google listing, rather
+ * than by address. Google renders its own "Odprite v Zemljevidih" button
+ * inside the iframe, and that button opens whatever the embed resolved to —
+ * so while this asked for "Poljanski nasip 8, 1000 Ljubljana" it opened the
+ * street address rather than the salon, next to our own button that opened the
+ * salon correctly. The button's link is Google's cross-origin markup and
+ * cannot be set from here; changing what the embed resolves to is what fixes
+ * it. See GOOGLE_MAPS_CID in src/lib/site.ts.
  *
  * `loading="lazy"` matters here: the embed pulls in a substantial amount of
  * Google's own JavaScript, and this section is far below the fold.
  */
-const MAP_QUERY = encodeURIComponent(`${BUSINESS_ADDRESS_LINE}`);
-const MAP_EMBED_SRC = `https://www.google.com/maps?q=${MAP_QUERY}&output=embed&hl=sl&z=16`;
+const MAP_EMBED_SRC = `https://www.google.com/maps?cid=${GOOGLE_MAPS_CID}&output=embed&hl=sl&z=16`;
 const MAP_LINK = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     `${SITE_NAME}, ${BUSINESS_ADDRESS_LINE}`
 )}`;
