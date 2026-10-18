@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 export const categories = sqliteTable("categories", {
@@ -88,3 +88,33 @@ export const customerNotes = sqliteTable("customer_notes", {
 
 export type CustomerNote = typeof customerNotes.$inferSelect;
 export type NewCustomerNote = typeof customerNotes.$inferInsert;
+
+/**
+ * Failed admin login attempts, used to lock out brute force.
+ *
+ * This exists because the Cloudflare Rate Limiting binding does not actually
+ * limit — it is approximate and eventually consistent, and 20 requests a
+ * second apart walked straight past a configured 8/60s (see the KNOWN
+ * LIMITATION block in src/lib/rate-limit.ts). ADMIN_PASSWORD is the only admin
+ * factor, so that path needs exact counting, and the database is the one piece
+ * of shared, strongly-consistent state the Worker already has.
+ *
+ * `attempted_at` is epoch milliseconds rather than the CURRENT_TIMESTAMP text
+ * the other tables use: the whole point is arithmetic on a sliding window, and
+ * comparing integers avoids depending on SQLite's date parsing.
+ *
+ * Only failures are recorded, and a successful login clears the row set, so
+ * the table stays small; old rows are pruned opportunistically on write.
+ */
+export const loginAttempts = sqliteTable(
+    "login_attempts",
+    {
+        id: integer("id").primaryKey({ autoIncrement: true }),
+        ip: text("ip").notNull(),
+        attemptedAt: integer("attempted_at").notNull(),
+    },
+    (table) => [index("login_attempts_ip_time_idx").on(table.ip, table.attemptedAt)]
+);
+
+export type LoginAttempt = typeof loginAttempts.$inferSelect;
+export type NewLoginAttempt = typeof loginAttempts.$inferInsert;
