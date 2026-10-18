@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
-import { generateSlotsForDateStr } from "@/lib/schedule";
+import { ADMIN_CLOSE, ADMIN_OPEN, generateAdminSlots, getScheduleForDateStr } from "@/lib/schedule";
 
 type Service = { id: number; name: string; duration: number; price: number };
 type Category = { id: number; name: string; services: Service[] };
@@ -70,12 +70,16 @@ export default function AddBookingModal({
     const totalDuration = selected.reduce((s, x) => s + x.duration, 0);
     const totalPrice = selected.reduce((s, x) => s + x.price, 0);
 
-    const slots = useMemo(() => (date ? generateSlotsForDateStr(date) : []), [date]);
+    // Manual entry spans the whole admin window on a 15-minute grid, on any day
+    // of the year — the public opening hours only constrain online bookings.
+    const slots = useMemo(() => generateAdminSlots(15), []);
     // Keep the prefilled time selectable even if it's outside the generated slots.
     const timeOptions = useMemo(
         () => (time && !slots.includes(time) ? [time, ...slots] : slots),
         [time, slots]
     );
+    // Informational only: the admin is allowed to book a closed day.
+    const closedDay = useMemo(() => !!date && !getScheduleForDateStr(date), [date]);
 
     const toggle = (id: number) =>
         setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -225,11 +229,11 @@ export default function AddBookingModal({
 
                     {/* Date + time */}
                     <div className="grid grid-cols-2 gap-3">
-                        <div>
+                        <div className="min-w-0">
                             <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Datum</label>
                             <input type="date" value={date} min={todayStr()} onChange={(e) => setDate(e.target.value)} className={`mt-1.5 ${inputClass}`} />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                             <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Ura</label>
                             <select value={time} onChange={(e) => setTime(e.target.value)} className={`mt-1.5 ${inputClass}`}>
                                 <option value="">—</option>
@@ -239,6 +243,16 @@ export default function AddBookingModal({
                             </select>
                         </div>
                     </div>
+
+                    <p className="-mt-1 text-[11px] text-gray-400">
+                        Ročni vnos je mogoč med {ADMIN_OPEN} in {ADMIN_CLOSE}; prekrivanje z drugimi termini je dovoljeno.
+                    </p>
+
+                    {closedDay && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-xs">
+                            Na ta dan je spletno naročanje zaprto (nedelja ali praznik). Ročni vnos je kljub temu mogoč.
+                        </div>
+                    )}
 
                     {/* Notes */}
                     <div>

@@ -1,5 +1,4 @@
-import { db } from "@/db";
-import { categories, services } from "@/db/schema";
+import { getCatalogue } from "@/lib/catalogue";
 import ServicesList from "@/components/ServicesList";
 import ServicesHero from "@/components/ServicesHero";
 import { SITE_URL, SITE_NAME } from "@/lib/site";
@@ -26,9 +25,9 @@ export default async function ServicesPage({
 }: {
     searchParams: Promise<{ selected?: string }>;
 }) {
-    // Server-side fetching
-    const allCategories = await db.select().from(categories).orderBy(categories.createdAt);
-    const allServices = await db.select().from(services).orderBy(services.createdAt);
+    // Served from the in-process catalogue cache — see src/lib/catalogue.ts.
+    // This page previously issued two full-table queries per render.
+    const { categories: allCategories, services: allServices } = await getCatalogue();
 
     const categoriesWithServices = allCategories.map((cat) => ({
         ...cat,

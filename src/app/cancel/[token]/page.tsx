@@ -154,7 +154,7 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
                     {errorIcon}
                     <h2 className="font-playfair text-xl text-charcoal mb-2">Preklic ni mogoč</h2>
                     <p className="text-charcoal/50 text-sm leading-relaxed mb-6">
-                        Termin je mogoče preklicati najkasneje 24 ur pred začetkom. Za pomoč nas prosimo kontaktirajte.
+                        Termin je mogoče preklicati prek te povezave najkasneje 36 ur pred začetkom. Za pomoč nas prosimo kontaktirajte.
                     </p>
                     {bookingCard}
                     {homeLink}

@@ -3,25 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BUSINESS, SOCIAL_LINKS, OPENING_HOURS } from "@/lib/site";
+import { BUSINESS, SOCIAL_LINKS, OPENING_HOURS_DISPLAY, ONLINE_BOOKING_WINDOW } from "@/lib/site";
 
 const QUICK_LINKS = [
     { label: "Storitve", href: "/services" },
     { label: "Rezerviraj", href: "/book" },
     { label: "Naša zgodba", href: "/#about" },
     { label: "Pogosta vprašanja", href: "/#faq" },
+    { label: "Splošni pogoji", href: "/pogoji" },
     { label: "Zasebnost", href: "/zasebnost" },
-];
-
-// Derived from the same OPENING_HOURS the structured data uses, so the visible
-// hours and the schema.org hours can't drift apart.
-const HOURS = [
-    ...OPENING_HOURS.map((h) => ({
-        day: h.label,
-        time: `${h.opens.replace(/^0/, "")} — ${h.closes}`,
-        closed: false,
-    })),
-    { day: "Nedelja", time: "Zaprto", closed: true },
 ];
 
 export default function Footer() {
@@ -80,14 +70,17 @@ export default function Footer() {
                     {/* Hours */}
                     <div className="flex flex-col items-center">
                         <h4 className="text-porcelain text-xs font-bold uppercase tracking-[0.15em] mb-5">Delovni čas</h4>
-                        <ul className="space-y-3 text-sm w-full max-w-[220px]">
-                            {HOURS.map((h) => (
+                        <ul className="space-y-3 text-sm w-full max-w-[240px]">
+                            {OPENING_HOURS_DISPLAY.map((h) => (
                                 <li key={h.day} className="flex justify-between gap-4">
                                     <span>{h.day}</span>
                                     <span className={h.closed ? "text-porcelain/30" : "text-porcelain font-medium"}>{h.time}</span>
                                 </li>
                             ))}
                         </ul>
+                        <p className="text-xs text-porcelain/30 mt-4 max-w-[240px] leading-relaxed">
+                            Spletno naročanje je mogoče med {ONLINE_BOOKING_WINDOW}. Za termin izven tega okvira nas pokličite.
+                        </p>
                     </div>
 
                     {/* Links */}

@@ -83,7 +83,7 @@ export default function PrivacyPage() {
                     </p>
                     {/* Registration details — required of a trader by ZEPT. */}
                     <p className="text-charcoal/50 text-sm">
-                        Matična številka: 7543794000 · Davčna številka: 88960587
+                        Matična številka: 7543794 · Davčna številka: 88960587
                     </p>
                 </Section>
 

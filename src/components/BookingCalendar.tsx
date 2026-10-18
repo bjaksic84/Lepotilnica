@@ -11,7 +11,6 @@ import {
     subMonths,
     isBefore,
     startOfDay,
-    getDay,
 } from "date-fns";
 import { sl } from "date-fns/locale";
 import { motion } from "framer-motion";
@@ -49,15 +48,14 @@ export default function BookingCalendar({
         }
         return false;
     };
-    const isWeekend = (date: Date) => {
-        const d = getDay(date);
-        return d === 0; // Sunday = 0 (Saturday is now open)
-    };
+    // Closed = Sunday or a Slovenian public holiday. Both come from the shared
+    // schedule, so the greyed-out cells always match what the API will accept.
+    const isClosed = (date: Date) => getScheduleForDate(date) === null;
 
     // Monday-start offset: getDay returns 0=Sun, 1=Mon, ..., 6=Sat
     // Convert to Mon=0, Tue=1, ..., Sun=6
     const firstDay = startOfMonth(currentMonth);
-    const dayOfWeek = getDay(firstDay);
+    const dayOfWeek = firstDay.getDay();
     const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 
     return (
@@ -104,10 +102,10 @@ export default function BookingCalendar({
 
                 {/* Day cells */}
                 {days.map((day) => {
-                    const disabled = isPast(day) || isWeekend(day);
+                    const closed = isClosed(day);
+                    const disabled = isPast(day) || closed;
                     const selected = selectedDate && isSameDay(day, selectedDate);
                     const isToday = isSameDay(day, new Date());
-                    const weekend = isWeekend(day);
 
                     return (
                         <motion.button
@@ -116,12 +114,13 @@ export default function BookingCalendar({
                             whileTap={!disabled ? { scale: 0.95 } : {}}
                             onClick={() => !disabled && onSelect(day)}
                             disabled={disabled}
+                            title={closed ? "Zaprto" : undefined}
                             className={`
                                 h-10 w-full flex items-center justify-center rounded-full text-sm transition-all relative font-medium
                                 ${selected
                                     ? "bg-charcoal text-porcelain shadow-lg"
                                     : disabled
-                                        ? weekend
+                                        ? closed
                                             ? "text-charcoal/15 cursor-not-allowed"
                                             : "text-charcoal/20 cursor-not-allowed"
                                         : "hover:bg-blush text-charcoal cursor-pointer"
@@ -150,6 +149,9 @@ export default function BookingCalendar({
                     <span className="text-[10px] text-charcoal/40">Zaprto</span>
                 </div>
             </div>
+            <p className="text-center text-[10px] text-charcoal/30 mt-3">
+                Ob nedeljah in praznikih je salon zaprt.
+            </p>
         </div>
     );
 }

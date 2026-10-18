@@ -6,23 +6,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { Service, Category } from "@/db/schema";
 import { syncServiceSelection } from "@/lib/booking-storage";
+import { getServiceImage, getServiceImagePosition } from "@/lib/service-image";
 
 type CategoryWithServices = Category & {
     services: Service[];
-};
-
-function getServiceImage(serviceName: string): string {
-    const slug = serviceName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    return `/services/${slug}.jpeg`;
-}
-
-function getServiceSlug(name: string): string {
-    return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-}
-
-// Per-service image crop adjustments
-const imagePositions: Record<string, string> = {
-    "pedikura-s-permanentnim-lakiranjem": "center 80%",
 };
 
 // Slovenian plural helper for the selection counter: [1, 2, 3–4, 5+/0]
@@ -226,7 +213,7 @@ export default function ServicesList({
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="flex items-center gap-1.5 text-xs text-charcoal/40 mt-1.5">
+                                            <div className="flex items-center gap-1.5 text-xs text-charcoal/40 mt-1.5 tabular-nums">
                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                 {service.duration} min
                                             </div>
@@ -235,7 +222,10 @@ export default function ServicesList({
                                         {/* Dotted leader — desktop only */}
                                         <span className="hidden md:block flex-1 border-b border-dotted border-charcoal/25 translate-y-[6px] mx-2" />
 
-                                        <span className="font-playfair font-bold text-lg md:text-xl text-charcoal whitespace-nowrap">
+                                        {/* tabular-nums keeps the price column aligned down the
+                                            list — proportional digits make a stack of prices
+                                            visibly ragged. */}
+                                        <span className="font-playfair font-bold text-lg md:text-xl text-charcoal whitespace-nowrap tabular-nums">
                                             €{service.price}
                                         </span>
 
@@ -277,7 +267,7 @@ export default function ServicesList({
                         className="fixed inset-x-0 bottom-0 z-50 p-3 sm:p-4 pointer-events-none"
                     >
                         <div className="pointer-events-auto mx-auto w-fit max-w-[calc(100vw-32px)] flex items-center gap-3 sm:gap-4 bg-charcoal text-porcelain rounded-full pl-5 pr-2 py-2 shadow-2xl border border-gold/30">
-                            <span className="text-sm font-semibold truncate">
+                            <span className="text-sm font-semibold truncate tabular-nums">
                                 {selectedIds.length} {selectedLabel(selectedIds.length)} · €{totalPrice} · {totalDuration} min
                             </span>
                             <button
@@ -324,7 +314,7 @@ export default function ServicesList({
                                     fill
                                     className="object-cover"
                                     sizes="(max-width: 768px) 100vw, 400px"
-                                    style={{ objectPosition: imagePositions[getServiceSlug(modalService.name)] || "center" }}
+                                    style={{ objectPosition: getServiceImagePosition(modalService.name) }}
                                     onError={(e) => {
                                         (e.target as HTMLImageElement).style.display = 'none';
                                     }}
@@ -362,7 +352,7 @@ export default function ServicesList({
                                     </p>
                                 )}
 
-                                <div className="flex items-center gap-4 text-sm text-charcoal/50 mb-6">
+                                <div className="flex items-center gap-4 text-sm text-charcoal/50 mb-6 tabular-nums">
                                     <div className="flex items-center gap-1.5">
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                         {modalService.duration} min

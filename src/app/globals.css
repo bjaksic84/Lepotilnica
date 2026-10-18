@@ -3,24 +3,29 @@
 @tailwind utilities;
 
 :root {
-  --background: #F9F5F2;
-  --foreground: #2D2A2A;
+  --background: #FBF7F3;
+  --foreground: #2A2320;
 
   --font-playfair: var(--font-playfair);
   --font-dm-sans: var(--font-dm-sans);
 
-  /* Palette tokens */
-  --porcelain: #F9F5F2;
+  /* Palette tokens — keep in step with tailwind.config.ts */
+  --porcelain: #FBF7F3;
   --dusty-rose: #E8D5D5;
-  --charcoal: #2D2A2A;
-  --gold: #D4AF37;
-  --gold-dark: #AA8C2C;
-  --blush: #F2E6E6;
+  --charcoal: #2A2320;
+  --gold: #C7A567;
+  --gold-dark: #A8854A;
+  --blush: #F3E8E5;
+  --rose: #B07567;
 
   /* Elevation + ambient tokens */
   --shadow-card: 0 8px 30px rgba(232, 213, 213, 0.55), 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-card-hover: 0 20px 50px rgba(232, 213, 213, 0.7), 0 8px 20px rgba(212, 175, 55, 0.15);
-  --glow-gold: radial-gradient(circle, rgba(212, 175, 55, 0.2) 0%, transparent 70%);
+  --shadow-card-hover: 0 20px 50px rgba(232, 213, 213, 0.7), 0 8px 20px rgba(199, 165, 103, 0.18);
+  --glow-gold: radial-gradient(circle, rgba(199, 165, 103, 0.22) 0%, transparent 70%);
+
+  /* Motion — paired with the `silk` / `swift` Tailwind easings */
+  --ease-silk: cubic-bezier(.32, .72, 0, 1);
+  --ease-swift: cubic-bezier(.16, 1, .3, 1);
 }
 
 @layer base {
@@ -118,6 +123,55 @@
   .gold-line {
     @apply h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent;
   }
+
+  /* ── Layered card: translucent outer frame + opaque inner face ──
+     The outer `.shell` carries the border, padding and drop shadow; the inner
+     `.core` carries the background and a 1px top highlight that reads as a lit
+     edge. The two-layer build is what separates this from a plain bordered box
+     — the inset radius has to be the outer radius minus the outer padding or
+     the corners go visibly wrong. */
+  .shell {
+    @apply rounded-[2rem] border border-charcoal/[0.06] bg-white/40 p-1.5
+      shadow-[0_30px_70px_-45px_rgba(42,35,32,0.35)] backdrop-blur-[2px];
+  }
+  .core {
+    @apply overflow-hidden rounded-[1.625rem] bg-[#FEFCFA]
+      shadow-[inset_0_1px_1px_rgba(255,255,255,0.9)];
+  }
+
+  /* ── Pill button with an icon capsule ──
+     The icon sits in its own circle inset into the pill's right end, which is
+     why the padding is asymmetric (pl-6 pr-1.5). `.btn-capsule-icon` animates
+     on the parent's hover, so the direction of travel can match the glyph —
+     an arrow leaves up-and-right, a phone tilts. */
+  /* Pair with `group` on the element itself — `group` is a marker class that
+     Tailwind cannot @apply. */
+  .btn-capsule {
+    @apply relative inline-flex select-none items-center gap-3 rounded-full
+      py-1.5 pl-6 pr-1.5 text-[13px] font-medium tracking-wide
+      transition-[transform,box-shadow,background-color,border-color]
+      duration-200 ease-swift active:scale-[0.975]
+      disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-capsule-dark {
+    @apply bg-charcoal text-porcelain
+      shadow-[0_18px_40px_-22px_rgba(42,35,32,0.85)]
+      hover:shadow-[0_26px_54px_-24px_rgba(42,35,32,0.9)];
+  }
+  .btn-capsule-light {
+    @apply border border-charcoal/15 bg-white/50 text-charcoal backdrop-blur-sm
+      hover:border-charcoal/30 hover:bg-white/80;
+  }
+  .btn-capsule-icon {
+    @apply relative z-10 flex h-9 w-9 shrink-0 items-center justify-center
+      rounded-full transition-transform duration-200 ease-swift
+      group-hover:scale-105;
+  }
+
+  /* Small caps label above a heading */
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[0.28em] text-charcoal/40;
+  }
 }
 
 @layer utilities {
@@ -125,16 +179,63 @@
     text-wrap: balance;
   }
 
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Fluid display heading — scales with the viewport between the two ends
+     instead of jumping at each breakpoint. */
+  .display-xl {
+    font-size: clamp(2.5rem, 8.5vw, 4rem);
+    line-height: 0.98;
+    letter-spacing: -0.026em;
+  }
+  .display-lg {
+    font-size: clamp(2rem, 6.5vw, 3.25rem);
+    line-height: 1.02;
+    letter-spacing: -0.022em;
+  }
+
+  /* Horizontal scrollers: keep the scrolling, drop the visible bar. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Tactile press feedback — matters most on touch, where there is no hover. */
+  .pressable {
+    @apply transition-transform duration-200 ease-swift active:scale-[0.975];
+  }
+
   /* Thin gold scrollbar for the horizontal category nav */
   .menuscroll {
     scrollbar-width: thin;
-    scrollbar-color: rgba(212, 175, 55, 0.4) transparent;
+    scrollbar-color: rgba(199, 165, 103, 0.4) transparent;
   }
   .menuscroll::-webkit-scrollbar {
     height: 6px;
   }
   .menuscroll::-webkit-scrollbar-thumb {
-    background: rgba(212, 175, 55, 0.4);
+    background: rgba(199, 165, 103, 0.4);
     border-radius: 4px;
+  }
+}
+
+/* Honour the OS "reduce motion" setting. The gallery carousel also reads this
+   via matchMedia and stops auto-advancing — CSS alone cannot stop a timer. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

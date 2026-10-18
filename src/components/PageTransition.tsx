@@ -26,7 +26,17 @@ export default function PageTransition({ children }: { children: React.ReactNode
     const pathname = usePathname();
 
     return (
-        <AnimatePresence mode="wait">
+        // `initial={false}` suppresses the enter animation for the *first*
+        // render only; route changes still fade.
+        //
+        // Without it, framer server-renders this wrapper as
+        // `style="opacity:0"`, so every page shipped invisible and only
+        // appeared once React had hydrated and run the 300ms fade. That made
+        // the whole site blank with JS disabled or hydration broken, and it
+        // quietly cancelled the LCP work in Hero.tsx — a transparent ancestor
+        // means the h1 inside it is not counted as painted, which is the exact
+        // thing that fix exists to avoid.
+        <AnimatePresence mode="wait" initial={false}>
             <motion.div
                 key={pathname}
                 initial={{ opacity: 0, y: 8 }}

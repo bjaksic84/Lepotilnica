@@ -46,6 +46,13 @@ async function loadBooking(
     return { booking };
 }
 
+/**
+ * Notice period for a fee-free cancellation, per the terms of service
+ * (/pogoji, §3). Changing it here means changing it in the ToS page, the
+ * confirmation e-mail, the cancellation page and the homepage FAQ too.
+ */
+const CANCELLATION_NOTICE_HOURS = 36;
+
 function hoursUntil(booking: Booking): number {
     const appointmentDateTime = new Date(`${booking.date}T${booking.time}:00`);
     return (appointmentDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
@@ -71,7 +78,7 @@ export async function GET(
         if (booking.status === "cancelled") {
             return NextResponse.json({ state: "already_cancelled", booking: summary });
         }
-        if (hoursUntil(booking) < 24) {
+        if (hoursUntil(booking) < CANCELLATION_NOTICE_HOURS) {
             return NextResponse.json({ state: "too_late", booking: summary });
         }
         return NextResponse.json({ state: "cancellable", booking: summary });
@@ -102,10 +109,10 @@ export async function POST(
             );
         }
 
-        if (hoursUntil(booking) < 24) {
+        if (hoursUntil(booking) < CANCELLATION_NOTICE_HOURS) {
             return NextResponse.json(
                 {
-                    error: "Cancellations must be made at least 24 hours before the appointment.",
+                    error: `Cancellations must be made at least ${CANCELLATION_NOTICE_HOURS} hours before the appointment.`,
                     appointmentDate: booking.date,
                     appointmentTime: booking.time,
                 },

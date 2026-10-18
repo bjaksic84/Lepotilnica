@@ -1,7 +1,7 @@
 import Hero from "@/components/Hero";
 import HomeContent from "@/components/HomeContent";
-import { db } from "@/db";
-import { services } from "@/db/schema";
+import ContactSection from "@/components/ContactSection";
+import { getCatalogue } from "@/lib/catalogue";
 import { SITE_URL } from "@/lib/site";
 import { faqJsonLd } from "@/lib/faq";
 import { jsonLdScript } from "@/lib/json-ld";
@@ -9,7 +9,9 @@ import { jsonLdScript } from "@/lib/json-ld";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const allServices = await db.select().from(services);
+  // Served from the in-process catalogue cache — see src/lib/catalogue.ts.
+  // A warm isolate renders this page without touching the database.
+  const { services: allServices } = await getCatalogue();
   const popularServices = allServices
     .filter((s) => s.isPopular)
     .slice(0, 3)
@@ -45,6 +47,7 @@ export default async function Home() {
       />
       <Hero />
       <HomeContent popularServices={popularServices} />
+      <ContactSection />
     </main>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { PUBLIC_CLOSE, PUBLIC_OPEN } from "@/lib/schedule";
 
 type Props = {
     onBlock: (startDate: string, startTime: string, endDate: string, endTime: string, reason: string) => Promise<void>;
@@ -16,9 +17,11 @@ function todayStr() {
 export default function BlockRangePanel({ onBlock, blocking }: Props) {
     const [open, setOpen] = useState(false);
     const [startDate, setStartDate] = useState(todayStr());
-    const [startTime, setStartTime] = useState("09:00");
+    // Defaults cover a whole bookable day; the dashboard clamps each day in the
+    // range to its own opening hours and skips days that are closed anyway.
+    const [startTime, setStartTime] = useState(PUBLIC_OPEN);
     const [endDate, setEndDate] = useState(todayStr());
-    const [endTime, setEndTime] = useState("20:00");
+    const [endTime, setEndTime] = useState(PUBLIC_CLOSE);
     const [reason, setReason] = useState("");
     const [error, setError] = useState("");
 

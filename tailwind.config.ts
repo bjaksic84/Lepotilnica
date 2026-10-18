@@ -12,19 +12,35 @@ const config: Config = {
                 background: "var(--background)",
                 foreground: "var(--foreground)",
                 // ── Luxury palette ──
-                porcelain: "#F9F5F2",
+                // Warmed in the 2026 UI pass. The previous gold (#D4AF37) was a
+                // bright metallic yellow that read cheaply across large fills;
+                // the muted tone below holds up at section scale and sits
+                // closer to the salon's actual gold signage. Names are
+                // unchanged so every existing usage keeps working.
+                porcelain: "#FBF7F3",
                 "dusty-rose": "#E8D5D5",
-                charcoal: "#2D2A2A",
+                charcoal: "#2A2320",
                 gold: {
-                    DEFAULT: "#D4AF37",
-                    light: "#E8CC6E",
-                    dark: "#AA8C2C",
+                    DEFAULT: "#C7A567",
+                    light: "#D9BC85",
+                    dark: "#A8854A",
                 },
                 blush: {
-                    DEFAULT: "#F2E6E6",
-                    hover: "#F2E6E6",
-                    light: "#F7F0F0",
+                    DEFAULT: "#F3E8E5",
+                    hover: "#F3E8E5",
+                    light: "#F8F1EE",
                 },
+                /** Accent for italic display words — used sparingly in headings. */
+                rose: {
+                    DEFAULT: "#B07567",
+                    dark: "#8E5F56",
+                },
+            },
+            transitionTimingFunction: {
+                /** Slow, long-travel motion (panels, filters, reveals). */
+                silk: "cubic-bezier(.32,.72,0,1)",
+                /** Short, snappy motion (buttons, icons, hovers). */
+                swift: "cubic-bezier(.16,1,.3,1)",
             },
             fontFamily: {
                 playfair: ["var(--font-playfair)", "serif"],

@@ -84,7 +84,6 @@ export async function POST(request: Request) {
         // confirmation e-mail.
         await runAfterResponse(
             sendBookingConfirmation({
-                customerName: validatedData.customerName,
                 customerEmail: validatedData.customerEmail,
                 date,
                 items: createdBookings.map(b => ({

@@ -30,7 +30,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     },
     {
         question: "Ali lahko odpovem ali prestavim termin?",
-        answer: "Da. V potrditvenem e-sporočilu prejmete povezavo za odpoved, ki deluje kadar koli. Če želite termin prestaviti, nas prosimo pokličite — tako lahko sproščeni termin ponudimo komu drugemu.",
+        answer: "Da. V potrditvenem e-sporočilu prejmete povezavo za odpoved, ki deluje do 36 ur pred začetkom termina — v tem roku je odpoved brezplačna. Za poznejšo odpoved ali prestavitev nas prosimo pokličite; takrat lahko veljajo stroški odpovedi iz splošnih pogojev poslovanja.",
     },
     {
         question: "Kako plačam storitev?",

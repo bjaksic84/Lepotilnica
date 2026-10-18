@@ -3,6 +3,62 @@
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { RATING_SNAPSHOT } from "@/lib/reviews";
+import { ONLINE_BOOKING_WINDOW } from "@/lib/site";
+
+/**
+ * Three facts a first-time visitor weighs before booking: is the salon any
+ * good, can I get in, and what do they use. Kept as a description list because
+ * that is what it is — label/value pairs, not decoration.
+ */
+function TrustStrip() {
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.7, ease: "easeOut" }}
+            className="mx-auto mt-16 max-w-lg"
+        >
+            <div className="gold-line" />
+            {/* Three columns have to survive a 320px screen, so the label
+                tracking and the value size both step down on mobile — at the
+                desktop settings "Google ocena" alone overflows its column. */}
+            <dl className="grid grid-cols-3 gap-3 pt-6 sm:gap-4">
+                <div>
+                    <dt className="eyebrow tracking-[0.12em] sm:tracking-[0.28em]">Google ocena</dt>
+                    <dd className="mt-2 flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-1">
+                        <span className="font-playfair text-lg leading-none text-charcoal sm:text-xl">
+                            {RATING_SNAPSHOT.valueDisplay}
+                        </span>
+                        <span
+                            className="flex gap-[2px] text-gold"
+                            role="img"
+                            aria-label={`${RATING_SNAPSHOT.valueDisplay} od 5 zvezdic`}
+                        >
+                            {Array.from({ length: 5 }, (_, i) => (
+                                <svg key={i} viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="currentColor" aria-hidden="true">
+                                    <path d="m12 2.6 2.9 5.9 6.5.95-4.7 4.6 1.1 6.45L12 17.45 6.2 20.5l1.1-6.45-4.7-4.6 6.5-.95L12 2.6Z" />
+                                </svg>
+                            ))}
+                        </span>
+                    </dd>
+                </div>
+                <div>
+                    <dt className="eyebrow tracking-[0.12em] sm:tracking-[0.28em]">Naročanje</dt>
+                    <dd className="mt-2 whitespace-nowrap font-playfair text-[13px] leading-tight text-charcoal tabular-nums sm:text-base">
+                        {ONLINE_BOOKING_WINDOW}
+                    </dd>
+                </div>
+                <div>
+                    <dt className="eyebrow tracking-[0.12em] sm:tracking-[0.28em]">Kozmetika</dt>
+                    <dd className="mt-2 font-playfair text-sm leading-tight text-charcoal sm:text-base">
+                        SKEYNDOR
+                    </dd>
+                </div>
+            </dl>
+        </motion.div>
+    );
+}
 
 export default function Hero() {
     return (
@@ -81,6 +137,8 @@ export default function Hero() {
                         </svg>
                     </Link>
                 </motion.div>
+
+                <TrustStrip />
             </div>
         </section>
     );

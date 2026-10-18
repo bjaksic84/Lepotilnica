@@ -8,6 +8,7 @@ import BlockRangePanel from "@/components/BlockRangePanel";
 import AddBookingModal from "@/components/admin/AddBookingModal";
 import SlotActionModal from "@/components/admin/SlotActionModal";
 import BlockTimeModal from "@/components/admin/BlockTimeModal";
+import MoveBookingModal from "@/components/admin/MoveBookingModal";
 import { getScheduleForDateStr, timeToMinutes, minutesToTime } from "@/lib/schedule";
 import ToastContainer, { useToast } from "@/components/Toast";
 
@@ -68,6 +69,9 @@ function AdminDashboard() {
     const [slotAction, setSlotAction] = useState<{ date: string; time: string } | null>(null);
     const [addBooking, setAddBooking] = useState<{ date?: string; time?: string } | null>(null);
     const [blockInit, setBlockInit] = useState<{ date: string; time: string } | null>(null);
+    // A drag in the timetable (or "Prestavi" in the detail modal) proposes a new
+    // slot; nothing is written until this modal is confirmed.
+    const [movePrompt, setMovePrompt] = useState<{ booking: Booking; date: string; time: string } | null>(null);
 
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -283,6 +287,11 @@ function AdminDashboard() {
         }
     };
 
+    const handleBookingMove = (bookingId: number, date: string, time: string) => {
+        const booking = bookings.find((b) => b.id === bookingId);
+        if (booking) setMovePrompt({ booking, date, time });
+    };
+
     const handleDeleteBlock = async (id: number) => {
         if (!confirm("Remove this blocked time?")) return;
         try {
@@ -313,12 +322,15 @@ function AdminDashboard() {
             {selectedBooking && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={() => setSelectedBooking(null)}>
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+                    {/* Header and footer are pinned, the details scroll: on a short
+                        phone the card is now taller than the viewport, and
+                        `overflow-hidden` alone would bury the actions. */}
                     <div
-                        className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isBlacklisted(selectedBooking.customerEmail) ? 'ring-2 ring-red-500' : ''}`}
+                        className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200 ${isBlacklisted(selectedBooking.customerEmail) ? 'ring-2 ring-red-500' : ''}`}
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Modal Header */}
-                        <div className="bg-gradient-to-r from-gray-900 to-gray-800 px-6 py-5 flex items-center justify-between">
+                        <div className="bg-gradient-to-r from-gray-900 to-gray-800 px-6 py-5 flex items-center justify-between flex-shrink-0">
                             <div>
                                 <p className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">Booking Details</p>
                                 <h3 className="text-white text-lg font-bold mt-0.5">#{selectedBooking.id}</h3>
@@ -334,7 +346,7 @@ function AdminDashboard() {
                         </div>
 
                         {/* Modal Body */}
-                        <div className="p-6 space-y-5">
+                        <div className="p-6 space-y-5 overflow-y-auto">
                             {/* Status Badge */}
                             <div className="flex items-center justify-between">
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
@@ -416,7 +428,23 @@ function AdminDashboard() {
                         </div>
 
                         {/* Modal Footer Actions */}
-                        <div className="border-t border-gray-100 px-6 py-4 flex flex-col gap-2">
+                        <div className="border-t border-gray-100 px-6 py-4 flex flex-col gap-2 flex-shrink-0">
+                            {selectedBooking.status !== 'cancelled' && (
+                                <button
+                                    onClick={() => {
+                                        setMovePrompt({
+                                            booking: selectedBooking,
+                                            date: selectedBooking.date,
+                                            time: selectedBooking.time,
+                                        });
+                                        setSelectedBooking(null);
+                                    }}
+                                    className="w-full px-4 py-2.5 bg-yellow-50 text-yellow-800 rounded-xl text-sm font-bold hover:bg-yellow-100 transition-colors flex items-center justify-center gap-1.5"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    Prestavi termin
+                                </button>
+                            )}
                             <div className="flex gap-2">
                                 {selectedBooking.status !== 'cancelled' && (
                                     <button
@@ -496,6 +524,33 @@ function AdminDashboard() {
                 />
             )}
 
+            {/* ── Move (drag-and-drop) confirmation ── */}
+            {movePrompt && (
+                <MoveBookingModal
+                    booking={{
+                        id: movePrompt.booking.id,
+                        customerName: movePrompt.booking.customerName,
+                        customerEmail: movePrompt.booking.customerEmail,
+                        serviceName: movePrompt.booking.serviceName,
+                        serviceDuration: movePrompt.booking.serviceDuration,
+                        date: movePrompt.booking.date,
+                        time: movePrompt.booking.time,
+                    }}
+                    targetDate={movePrompt.date}
+                    targetTime={movePrompt.time}
+                    onClose={() => setMovePrompt(null)}
+                    onMoved={(notified) => {
+                        setMovePrompt(null);
+                        addToast({
+                            type: "success",
+                            title: "Termin prestavljen",
+                            message: notified ? "Stranka je obveščena po e-pošti." : "Stranka ni bila obveščena.",
+                        });
+                        fetchData();
+                    }}
+                />
+            )}
+
             <div className="container mx-auto px-4 max-w-7xl">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -523,7 +578,7 @@ function AdminDashboard() {
                             <svg className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <div>
                                 <h3 className="font-bold text-yellow-800 text-sm">How to use the calendar</h3>
-                                <p className="text-yellow-700 text-sm">Tap <span className="font-semibold">empty space</span> to add a booking or block time. Tap a <span className="font-semibold">booking</span> for its details, or a <span className="font-semibold">blocked</span> area to remove it. On mobile it shows one day — use the arrows to move between days. For longer absences (vacation), use the block panel above.</p>
+                                <p className="text-yellow-700 text-sm">Tap <span className="font-semibold">empty space</span> to add a booking or block time. Tap a <span className="font-semibold">booking</span> for its details, or a <span className="font-semibold">blocked</span> area to remove it. To move a booking, <span className="font-semibold">drag it</span> — on a phone, <span className="font-semibold">press and hold</span> it first, then drag; hold near the top or bottom edge and the day scrolls by itself. A dashed outline shows exactly where it will land, and you confirm the new day and time (and whether the client is e-mailed) before anything is saved. The grid runs 06:00–22:00 so anything agreed outside the online hours (07:30–19:30) still fits, and manual entries may overlap. For longer absences (vacation), use the block panel above.</p>
                             </div>
                         </div>
                         <WeeklyTimetable
@@ -532,6 +587,7 @@ function AdminDashboard() {
                             currentDate={viewDate}
                             onDateChange={setViewDate}
                             onDeleteBlock={handleDeleteBlock}
+                            onBookingMove={handleBookingMove}
                             onEmptySlotClick={(date, time) => setSlotAction({ date, time })}
                             onBookingClick={(id) => {
                                 const booking = bookings.find(b => b.id === id);

@@ -93,7 +93,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#D4AF37",
+  // Matches the page background, so the mobile browser chrome blends into the
+  // page instead of framing it in a contrasting gold band.
+  themeColor: "#FBF7F3",
   colorScheme: "light",
   width: "device-width",
   initialScale: 1,
@@ -118,9 +120,14 @@ function JsonLd() {
       "Prestižni kozmetični salon v Ljubljani: nege obraza, manikura in pedikura, depilacija, laminacija in oblikovanje obrvi, tretmaji trepalnic, masaže, biomicroneedling in oblikovanje telesa.",
     url: baseUrl,
     logo: `${baseUrl}/logo.png`,
+    // Real photographs of the premises rank better than a generated OG card
+    // here — this is the image set Google may surface on the Business Profile,
+    // so it should look like the salon, not like the website.
     image: [
+      `${baseUrl}/gallery/recepcija.webp`,
+      `${baseUrl}/gallery/salon-wide.webp`,
+      `${baseUrl}/gallery/karin.webp`,
       `${baseUrl}/og-image.png`,
-      `${baseUrl}/about-karin.jpeg`,
     ],
     telephone: BUSINESS.phone,
     email: BUSINESS.email,

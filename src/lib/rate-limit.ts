@@ -91,6 +91,12 @@ export const cancelLimiter = rateLimit({
     uniqueTokenPerInterval: 500,
 });
 
+// Website enquiry form: 3 messages per 15 minutes per IP
+export const contactLimiter = rateLimit({
+    interval: 15 * 60 * 1000,
+    uniqueTokenPerInterval: 500,
+});
+
 /** Shape of a Cloudflare Rate Limiting binding (`env.<NAME>.limit(...)`). */
 interface CfRateLimit {
     limit(options: { key: string }): Promise<{ success: boolean }>;

@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { getScheduleForDateStr, timeToMinutes, minutesToTime } from "@/lib/schedule";
+import { ADMIN_CLOSE_MIN, ADMIN_OPEN_MIN, timeToMinutes, minutesToTime } from "@/lib/schedule";
 
 /**
- * Pick a from–to interval on a given day to block. Options are constrained to
- * the day's working hours; the shared timetable/overlap logic lives server-side.
+ * Pick a from–to interval on a given day to block. Options span the admin
+ * window (06:00–22:00) rather than the public opening hours, so a block can
+ * cover anything the timetable can show — including a day the salon is closed
+ * to online booking anyway. The shared overlap logic lives server-side.
  */
 export default function BlockTimeModal({
     date,
@@ -19,23 +21,18 @@ export default function BlockTimeModal({
     onBlock: (date: string, start: string, end: string, reason: string) => Promise<void>;
     onClose: () => void;
 }) {
-    const schedule = useMemo(() => getScheduleForDateStr(date), [date]);
-
-    // 30-min grid across the working day.
+    // 30-min grid across the admin window.
     const { startOptions, endOptions } = useMemo(() => {
-        if (!schedule) return { startOptions: [] as string[], endOptions: [] as string[] };
-        const open = timeToMinutes(schedule.open);
-        const close = timeToMinutes(schedule.close);
         const starts: string[] = [];
         const ends: string[] = [];
-        for (let m = open; m < close; m += 30) starts.push(minutesToTime(m));
-        for (let m = open + 30; m <= close; m += 30) ends.push(minutesToTime(m));
+        for (let m = ADMIN_OPEN_MIN; m < ADMIN_CLOSE_MIN; m += 30) starts.push(minutesToTime(m));
+        for (let m = ADMIN_OPEN_MIN + 30; m <= ADMIN_CLOSE_MIN; m += 30) ends.push(minutesToTime(m));
         return { startOptions: starts, endOptions: ends };
-    }, [schedule]);
+    }, []);
 
     const [start, setStart] = useState(() => (startOptions.includes(startTime) ? startTime : startOptions[0] ?? ""));
     const [end, setEnd] = useState(() => {
-        const startMin = timeToMinutes(startOptions.includes(startTime) ? startTime : startOptions[0] ?? "09:00");
+        const startMin = timeToMinutes(startOptions.includes(startTime) ? startTime : startOptions[0] ?? minutesToTime(ADMIN_OPEN_MIN));
         const next = minutesToTime(startMin + 30);
         return endOptions.includes(next) ? next : endOptions[endOptions.length - 1] ?? "";
     });
@@ -88,10 +85,6 @@ export default function BlockTimeModal({
                 </div>
 
                 <div className="p-5 space-y-4">
-                    {!schedule ? (
-                        <p className="text-sm text-gray-500 text-center py-4">Na ta dan je salon zaprt.</p>
-                    ) : (
-                        <>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Od</label>
@@ -122,22 +115,18 @@ export default function BlockTimeModal({
                                 <input value={reason} onChange={(e) => setReason(e.target.value)} className={`mt-1.5 ${inputClass}`} placeholder="npr. Odsotnost, malica ..." />
                             </div>
                             {error && <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">{error}</div>}
-                        </>
-                    )}
                 </div>
 
-                {schedule && (
-                    <div className="border-t border-gray-100 p-4 flex gap-2">
-                        <button onClick={onClose} className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors">Prekliči</button>
-                        <button
-                            onClick={submit}
-                            disabled={submitting}
-                            className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-                        >
-                            {submitting ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Blokiram ...</> : "Blokiraj"}
-                        </button>
-                    </div>
-                )}
+                <div className="border-t border-gray-100 p-4 flex gap-2">
+                    <button onClick={onClose} className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors">Prekliči</button>
+                    <button
+                        onClick={submit}
+                        disabled={submitting}
+                        className="flex-1 px-4 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                        {submitting ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Blokiram ...</> : "Blokiraj"}
+                    </button>
+                </div>
             </motion.div>
         </div>
     );

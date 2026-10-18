@@ -1,22 +1,14 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { categories, services } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { getCatalogueByCategory } from "@/lib/catalogue";
 
-// Public endpoint - no auth required
+// Public endpoint - no auth required. The booking flow polls this, so it goes
+// through the same in-process cache as the pages rather than re-querying the
+// full catalogue on every call.
 export async function GET() {
     try {
-        const allCategories = await db.select().from(categories).orderBy(categories.createdAt);
-        const allServices = await db.select().from(services).orderBy(services.createdAt);
-
-        // Group services under their categories
-        const result = allCategories.map((cat) => ({
-            ...cat,
-            services: allServices.filter((s) => s.categoryId === cat.id),
-        }));
-
-        return NextResponse.json(result);
+        return NextResponse.json(await getCatalogueByCategory());
     } catch (error) {
+        console.error("Services fetch error:", error);
         return NextResponse.json({ error: "Failed to fetch services" }, { status: 500 });
     }
 }

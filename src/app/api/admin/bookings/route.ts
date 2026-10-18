@@ -75,7 +75,9 @@ export async function POST(request: Request) {
             );
         }
 
-        const created = await createBookings(result.data);
+        // "admin" widens the window to 06:00–22:00, lifts the closed-day rule
+        // and permits overlap — see createBookings for why.
+        const created = await createBookings({ ...result.data, mode: "admin" });
         if (!created.ok) {
             return NextResponse.json({ error: created.error }, { status: created.status });
         }
@@ -85,7 +87,6 @@ export async function POST(request: Request) {
             // when the response is returned, which dropped the e-mail entirely.
             await runAfterResponse(
                 sendBookingConfirmation({
-                    customerName: result.data.customerName,
                     customerEmail: result.data.customerEmail,
                     date: result.data.date,
                     items: created.created.map((b) => ({

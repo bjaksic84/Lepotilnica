@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { invalidateCatalogue } from "@/lib/catalogue";
 import { categories, services } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const unauth = await requireAdmin();
     if (unauth) return unauth;
+
+    // The catalogue just changed — drop this isolate's cached copy.
+    invalidateCatalogue();
 
     try {
         const { id: idStr } = await params;
@@ -35,6 +39,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const unauth = await requireAdmin();
     if (unauth) return unauth;
+
+    // The catalogue just changed — drop this isolate's cached copy.
+    invalidateCatalogue();
 
     try {
         const { id: idStr } = await params;

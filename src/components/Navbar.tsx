@@ -7,9 +7,11 @@ import { usePathname } from "next/navigation";
 import { motion, useScroll, useMotionValueEvent, AnimatePresence } from "framer-motion";
 
 const NAV_LINKS = [
-    { href: "/", label: "Domov" },
     { href: "/services", label: "Storitve" },
+    { href: "/#galerija", label: "Galerija" },
+    { href: "/#mnenja", label: "Mnenja" },
     { href: "/#about", label: "O nas" },
+    { href: "/#kontakt", label: "Kontakt" },
 ];
 
 export default function Navbar() {
@@ -56,7 +58,7 @@ export default function Navbar() {
                         </div>
                     </Link>
 
-                    <div className="hidden md:flex space-x-8 items-center font-medium text-charcoal/60 text-sm tracking-wide uppercase">
+                    <div className="hidden lg:flex space-x-7 items-center font-medium text-charcoal/60 text-[13px] tracking-wide uppercase">
                         {NAV_LINKS.map((link) => {
                             const isActive = link.href === "/"
                                 ? pathname === "/"
@@ -65,16 +67,21 @@ export default function Navbar() {
                                 <Link
                                     key={link.href}
                                     href={link.href}
-                                    className={`transition-colors relative group ${
+                                    className={`transition-colors relative group flex items-center min-h-[44px] ${
                                         isActive ? "text-charcoal" : "hover:text-charcoal"
                                     }`}
                                 >
-                                    {link.label}
-                                    <span
-                                        className={`absolute -bottom-1 left-0 h-px bg-gold transition-all duration-300 ${
-                                            isActive ? "w-full" : "w-0 group-hover:w-full"
-                                        }`}
-                                    />
+                                    {/* The underline is anchored to the text, not to the
+                                        44px tap target, or it would float well below the
+                                        label. */}
+                                    <span className="relative">
+                                        {link.label}
+                                        <span
+                                            className={`absolute -bottom-1.5 left-0 h-px bg-gold transition-all duration-300 ${
+                                                isActive ? "w-full" : "w-0 group-hover:w-full"
+                                            }`}
+                                        />
+                                    </span>
                                 </Link>
                             );
                         })}
@@ -83,7 +90,7 @@ export default function Navbar() {
                     <div className="flex items-center gap-3">
                         <Link
                             href="/book"
-                            className={`hidden md:inline-flex px-6 py-2.5 rounded-full font-medium transition-all transform hover:scale-[1.03] shadow-md text-sm tracking-wide ${
+                            className={`hidden lg:inline-flex items-center min-h-[44px] px-6 py-2.5 rounded-full font-medium transition-all transform hover:scale-[1.03] shadow-md text-sm tracking-wide ${
                                 scrolled
                                     ? "bg-charcoal text-porcelain hover:bg-charcoal/90"
                                     : "bg-porcelain text-charcoal hover:bg-blush"
@@ -95,8 +102,9 @@ export default function Navbar() {
                         {/* Mobile menu button */}
                         <button
                             onClick={() => setMobileOpen(!mobileOpen)}
-                            className="md:hidden p-2 text-charcoal/70 hover:bg-blush rounded-lg transition-colors"
-                            aria-label="Toggle menu"
+                            className="lg:hidden flex items-center justify-center min-h-[44px] min-w-[44px] text-charcoal/70 hover:bg-blush rounded-lg transition-colors"
+                            aria-label={mobileOpen ? "Zapri meni" : "Odpri meni"}
+                            aria-expanded={mobileOpen}
                         >
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 {mobileOpen ? (
@@ -115,7 +123,7 @@ export default function Navbar() {
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
-                            className="absolute top-full inset-x-0 md:hidden bg-porcelain/95 backdrop-blur-xl border-b border-dusty-rose/30 shadow-lg"
+                            className="absolute top-full inset-x-0 lg:hidden bg-porcelain/95 backdrop-blur-xl border-b border-dusty-rose/30 shadow-lg"
                         >
                             <div className="container mx-auto px-4 py-6 flex flex-col gap-4">
                                 {NAV_LINKS.map((link) => {
@@ -126,7 +134,7 @@ export default function Navbar() {
                                         <Link
                                             key={link.href}
                                             href={link.href}
-                                            className={`font-medium py-2 transition-colors ${
+                                            className={`font-medium flex items-center min-h-[44px] transition-colors ${
                                                 isActive ? "text-gold" : "text-charcoal hover:text-gold"
                                             }`}
                                             onClick={() => setMobileOpen(false)}

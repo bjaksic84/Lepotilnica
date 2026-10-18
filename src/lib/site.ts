@@ -35,7 +35,7 @@ export const SITE_NAME = "Lepotilnica by Karin";
  */
 export const BUSINESS = {
     name: SITE_NAME,
-    street: "Poljanski nasip 6",
+    street: "Poljanski nasip 8",
     postalCode: "1000",
     city: "Ljubljana",
     country: "SI",
@@ -44,8 +44,19 @@ export const BUSINESS = {
     /** Display form — used in visible markup. */
     phoneDisplay: "+386 40 774 429",
     email: "info@lepotilnicabykarin.si",
-    /** Exact pin from the Google Business Profile listing — keep the two in sync. */
-    geo: { latitude: 46.0515912, longitude: 14.5117449 },
+    /**
+     * Pin for the street address above.
+     *
+     * This previously held 46.0515912 / 14.5117449, which was the pin for the
+     * old address at Poljanski nasip 6 — it reverse-geocodes to the Netherlands
+     * Embassy building, 27 m west of the salon. The coordinates below resolve
+     * to Poljanski nasip 8, the Spar building the salon is actually in.
+     *
+     * The Google Business Profile listing still carries the old pin. Local
+     * search ranking depends on the site and the profile agreeing, so the
+     * profile needs moving to match — until then the two disagree by that 27 m.
+     */
+    geo: { latitude: 46.0515692, longitude: 14.5120902 },
 } as const;
 
 export const BUSINESS_ADDRESS_LINE = `${BUSINESS.street}, ${BUSINESS.postalCode} ${BUSINESS.city}`;
@@ -84,9 +95,37 @@ export const SERVICE_CATEGORIES = [
     "Oblikovanje telesa",
 ] as const;
 
-/** Opening hours — mirrored by the footer and the JSON-LD, so they can't drift. */
+/**
+ * Opening hours, in the two forms the site needs.
+ *
+ * The salon works "po dogovoru" (by arrangement), so there is no fixed counter
+ * time to advertise — that is what visitors are told. Search engines, however,
+ * cannot represent "by arrangement", and omitting the hours entirely costs the
+ * Google Business Profile its opening-hours panel. `OPENING_HOURS` therefore
+ * carries the window the online booking system actually accepts (the same
+ * PUBLIC_OPEN/PUBLIC_CLOSE as src/lib/schedule.ts), which is a truthful
+ * statement of when an appointment can be had, while `OPENING_HOURS_DISPLAY`
+ * is what the footer shows. Keep both in step with the booking schedule.
+ */
 export const OPENING_HOURS = [
-    { days: ["Monday", "Tuesday", "Wednesday", "Thursday"], label: "Pon — Čet", opens: "09:00", closes: "20:00" },
-    { days: ["Friday"], label: "Petek", opens: "09:00", closes: "18:00" },
-    { days: ["Saturday"], label: "Sobota", opens: "10:00", closes: "18:00" },
+    {
+        days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        label: "Pon — Sob",
+        opens: "07:30",
+        closes: "19:30",
+    },
 ] as const;
+
+/** Human-facing hours, as the salon states them. */
+export const OPENING_HOURS_DISPLAY = [
+    { day: "Pon — Sob", time: "Po dogovoru", closed: false },
+    { day: "Nedelja in prazniki", time: "Zaprto", closed: true },
+] as const;
+
+/**
+ * Window in which the website itself accepts self-service bookings. Two forms:
+ * the dash reads correctly in the footer's hours table, but badly inside a
+ * sentence ("med 7.30 — 19.30"), which is where the prose form is used.
+ */
+export const ONLINE_BOOKING_WINDOW = "7.30 — 19.30";
+export const ONLINE_BOOKING_WINDOW_PROSE = "7.30 in 19.30";

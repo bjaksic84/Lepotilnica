@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { invalidateCatalogue } from "@/lib/catalogue";
 import { categories } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -19,6 +20,9 @@ export async function GET() {
 export async function POST(req: Request) {
     const unauth = await requireAdmin();
     if (unauth) return unauth;
+
+    // The catalogue just changed — drop this isolate's cached copy.
+    invalidateCatalogue();
 
     try {
         const { name, description } = await req.json();

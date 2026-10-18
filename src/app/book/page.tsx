@@ -109,6 +109,12 @@ function BookingContent() {
     const bookPillRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
     const [activeBookCat, setActiveBookCat] = useState<number | null>(null);
 
+    // Acceptance of the terms of service + privacy policy. Deliberately NOT
+    // persisted with the rest of the progress: everything else is data the
+    // customer typed and would be annoyed to retype, whereas consent is an act
+    // and should be performed, not restored.
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
+
     // Validation
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -472,6 +478,14 @@ function BookingContent() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedDate || !selectedTime || selectedServiceIds.length === 0) return;
+
+        if (!acceptedTerms) {
+            setErrors((prev) => ({
+                ...prev,
+                terms: "Za nadaljevanje potrdite strinjanje s splošnimi pogoji in politiko zasebnosti.",
+            }));
+            return;
+        }
 
         // Touch all fields
         setTouched({ name: true, email: true, phone: true });
@@ -1192,10 +1206,70 @@ function BookingContent() {
                                         )}
                                     </div>
 
+                                    {/* Consent — GDPR Art. 13 requires the purpose of the
+                                        collection to be disclosed at the point of collection,
+                                        and the cancellation-fee terms are far too consequential
+                                        to bury in a footer link. One tick covers both documents,
+                                        and nothing is submitted until it is given. */}
+                                    <div className="pt-1">
+                                        <label className="flex items-start gap-3 cursor-pointer select-none group">
+                                            <input
+                                                type="checkbox"
+                                                checked={acceptedTerms}
+                                                onChange={(e) => {
+                                                    setAcceptedTerms(e.target.checked);
+                                                    if (e.target.checked) {
+                                                        setErrors((prev) => {
+                                                            const next = { ...prev };
+                                                            delete next.terms;
+                                                            return next;
+                                                        });
+                                                    }
+                                                }}
+                                                className={`mt-0.5 w-5 h-5 rounded accent-gold flex-shrink-0 cursor-pointer ${
+                                                    errors.terms ? "ring-2 ring-red-300 rounded" : ""
+                                                }`}
+                                                aria-describedby={errors.terms ? "terms-error" : undefined}
+                                            />
+                                            <span className="text-xs text-charcoal/60 leading-relaxed">
+                                                Strinjam se s{" "}
+                                                <Link
+                                                    href="/pogoji"
+                                                    target="_blank"
+                                                    className="text-charcoal underline underline-offset-2 hover:text-gold-dark transition-colors"
+                                                >
+                                                    splošnimi pogoji poslovanja
+                                                </Link>{" "}
+                                                — vključno s pogoji odpovedi termina — in s{" "}
+                                                <Link
+                                                    href="/zasebnost"
+                                                    target="_blank"
+                                                    className="text-charcoal underline underline-offset-2 hover:text-gold-dark transition-colors"
+                                                >
+                                                    politiko zasebnosti
+                                                </Link>
+                                                , po kateri vaše ime, e-pošto in telefonsko številko uporabimo
+                                                za potrditev in izvedbo termina.
+                                            </span>
+                                        </label>
+                                        {errors.terms && (
+                                            <p id="terms-error" className="text-red-500 text-xs pl-8 mt-1.5 flex items-center gap-1">
+                                                <svg className="w-3 h-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
+                                                {errors.terms}
+                                            </p>
+                                        )}
+                                    </div>
+
                                     {/* Submit */}
                                     <button
                                         type="submit"
-                                        disabled={submitting}
+                                        disabled={submitting || !acceptedTerms}
                                         className="w-full py-4 bg-charcoal text-porcelain rounded-xl font-bold text-[15px] hover:bg-charcoal/90 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-lg hover:shadow-xl mt-2"
                                     >
                                         {submitting ? (
@@ -1212,19 +1286,9 @@ function BookingContent() {
                                         )}
                                     </button>
 
-                                    {/* GDPR Art. 13 requires that the purpose of the
-                                        collection is disclosed at the point of collection,
-                                        not only buried in the footer. */}
                                     <p className="text-xs text-charcoal/40 text-center leading-relaxed pt-1">
-                                        Z oddajo rezervacije se strinjate, da vaše ime, e-pošto in telefonsko
-                                        številko uporabimo za potrditev in izvedbo termina. Več v{" "}
-                                        <Link
-                                            href="/zasebnost"
-                                            className="text-charcoal/60 underline underline-offset-2 hover:text-gold-dark transition-colors"
-                                        >
-                                            politiki zasebnosti
-                                        </Link>
-                                        .
+                                        Termin lahko brezplačno odpoveste najpozneje 36 ur pred začetkom —
+                                        povezavo za odpoved prejmete v potrditvenem e-sporočilu.
                                     </p>
                                 </form>
                             </motion.div>
@@ -1309,6 +1373,7 @@ function BookingContent() {
                                             setEmail("");
                                             setPhone("");
                                             setNotes("");
+                                            setAcceptedTerms(false);
                                             setErrors({});
                                             setTouched({});
                                         }}

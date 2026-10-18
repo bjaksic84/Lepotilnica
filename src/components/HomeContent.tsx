@@ -5,6 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { FAQ_ITEMS } from "@/lib/faq";
+import { KARIN_PORTRAIT } from "@/lib/gallery";
+import { getServiceImage, getServiceImagePosition } from "@/lib/service-image";
+import GalleryCarousel from "@/components/GalleryCarousel";
+import Reviews from "@/components/Reviews";
 
 type Service = {
     id: number;
@@ -20,15 +24,6 @@ const cardGradients = [
     "from-blush to-porcelain",
     "from-dusty-rose/30 to-blush/60",
 ];
-
-function getServiceSlug(name: string) {
-    return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-}
-
-// Per-service image crop adjustments
-const imagePositions: Record<string, string> = {
-    "pedikura-s-permanentnim-lakiranjem": "center 80%",
-};
 
 export default function HomeContent({ popularServices }: { popularServices: Service[] }) {
     const servicesRef = useRef<HTMLElement>(null);
@@ -91,12 +86,12 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                     {/* Service image */}
                                     <div className={`relative h-56 bg-gradient-to-br ${cardGradients[i % cardGradients.length]} overflow-hidden`}>
                                         <Image
-                                            src={`/services/${getServiceSlug(service.name)}.jpeg`}
+                                            src={getServiceImage(service.name)}
                                             alt={`${service.name} — lepotni tretma v Lepotilnici`}
                                             fill
                                             className="object-cover group-hover:scale-105 transition-transform duration-500"
                                             sizes="(max-width: 768px) 100vw, 33vw"
-                                            style={{ objectPosition: imagePositions[getServiceSlug(service.name)] || "center" }}
+                                            style={{ objectPosition: getServiceImagePosition(service.name) }}
                                             onError={(e) => {
                                                 (e.target as HTMLImageElement).style.display = "none";
                                             }}
@@ -121,7 +116,7 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                             {service.description || "Odkrijte prednosti tega vrhunskega tretmaja."}
                                         </p>
 
-                                        <div className="flex items-center gap-2 text-xs text-charcoal/40 mb-6 mt-auto">
+                                        <div className="flex items-center gap-2 text-xs text-charcoal/40 mb-6 mt-auto tabular-nums">
                                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                             {service.duration} min
                                         </div>
@@ -129,7 +124,7 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                                         <div className="flex items-end justify-between pt-4 border-t border-dusty-rose/30">
                                             <div>
                                                 <span className="text-[10px] text-charcoal/40 uppercase tracking-widest font-semibold block">Za</span>
-                                                <span className="text-2xl font-playfair font-bold text-charcoal">€{service.price}</span>
+                                                <span className="text-2xl font-playfair font-bold text-charcoal tabular-nums">€{service.price}</span>
                                             </div>
                                             <Link
                                                 href={`/book?service=${service.id}`}
@@ -159,6 +154,8 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                     </div>
                 </div>
             </section>
+
+            <GalleryCarousel />
 
             {/* About Section */}
             <section id="about" ref={aboutRef} className="py-32 bg-charcoal text-porcelain relative overflow-hidden">
@@ -193,14 +190,11 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                             className="relative aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl"
                         >
                             <Image
-                                src="/about-karin.jpeg"
-                                alt="Urejena tretmajska miza z brisačo in masažnim oljem v salonu Lepotilnica by Karin v Ljubljani"
+                                src={KARIN_PORTRAIT.src}
+                                alt={KARIN_PORTRAIT.alt}
                                 fill
                                 className="object-cover"
                                 sizes="(max-width: 768px) 100vw, 50vw"
-                                onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display = "none";
-                                }}
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 via-transparent to-transparent" />
                         </motion.div>
@@ -265,6 +259,8 @@ export default function HomeContent({ popularServices }: { popularServices: Serv
                     </motion.div>
                 </div>
             </section>
+
+            <Reviews />
 
             <FaqSection />
         </>

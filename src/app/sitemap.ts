@@ -47,6 +47,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             priority: 0.8,
         },
         {
+            url: `${baseUrl}/pogoji`,
+            lastModified: catalogueUpdated,
+            changeFrequency: "yearly",
+            priority: 0.2,
+        },
+        {
             url: `${baseUrl}/zasebnost`,
             lastModified: catalogueUpdated,
             changeFrequency: "yearly",
