@@ -470,6 +470,243 @@ export async function sendEnquiry(
     }
 }
 
+/* ── Notifications to the salon ──────────────────────── */
+
+/**
+ * Where notifications for Karin go.
+ *
+ * Defaults to the salon's own address, which Cloudflare Email Routing forwards
+ * to her Gmail. Keeping the default on the domain is deliberate: where these
+ * land then becomes a routing rule she can change herself, rather than an
+ * environment variable that needs a deploy. NOTIFY_EMAIL overrides it, which
+ * is how this gets exercised without actually mailing her.
+ */
+function notificationRecipient(): string {
+    return process.env.NOTIFY_EMAIL?.trim() || BUSINESS.email;
+}
+
+export interface NewBookingNotificationData {
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string | null;
+    date: string;
+    notes?: string | null;
+    items: {
+        serviceName: string;
+        time: string;
+        serviceDuration: number;
+        servicePrice: number;
+    }[];
+}
+
+function buildNewBookingHtml(data: NewBookingNotificationData): string {
+    const row = (label: string, value: string) => `
+                    <tr>
+                      <td style="padding:8px 0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;width:110px;" valign="top">${label}</td>
+                      <td style="padding:8px 0;font-size:15px;color:#1a1a1a;" valign="top">${value}</td>
+                    </tr>`;
+
+    const total = data.items.reduce((sum, i) => sum + i.servicePrice, 0);
+    const servicesHtml = data.items
+        .map(
+            (item) => `
+                      <tr>
+                        <td style="padding:6px 0;font-size:15px;color:#1a1a1a;" valign="top">
+                          <strong style="font-weight:600;">${escapeHtml(item.time)}</strong>
+                          &nbsp;·&nbsp;${escapeHtml(item.serviceName)}
+                          <span style="color:#999;">(${item.serviceDuration} min)</span>
+                        </td>
+                        <td style="padding:6px 0;font-size:15px;color:#1a1a1a;text-align:right;" valign="top">
+                          ${formatPrice(item.servicePrice)}
+                        </td>
+                      </tr>`
+        )
+        .join("");
+
+    return emailShell("Nova rezervacija", `
+          <tr>
+            <td style="padding:36px 40px 0;">
+              <p style="margin:0;font-size:14px;color:#888;text-transform:uppercase;letter-spacing:2px;">
+                Nova rezervacija
+              </p>
+              <h2 style="margin:8px 0 0;font-size:24px;color:#1a1a1a;font-family:Georgia,'Times New Roman',serif;font-weight:400;">
+                ${escapeHtml(formatDate(data.date))}
+              </h2>
+              <p style="margin:12px 0 0;font-size:14px;color:#555;line-height:1.6;">
+                Rezervacijo je oddala stranka prek spletne strani. Na to sporočilo lahko
+                neposredno odgovorite — odgovor bo prejela stranka.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 40px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf5f0;border-radius:12px;border:1px solid #f0e6d8;">
+                <tr>
+                  <td style="padding:22px 26px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      ${row("Stranka", escapeHtml(data.customerName))}
+                      ${row("E-pošta", `<a href="mailto:${escapeHtml(data.customerEmail)}" style="color:#1a1a1a;">${escapeHtml(data.customerEmail)}</a>`)}
+                      ${data.customerPhone ? row("Telefon", `<a href="tel:${escapeHtml(data.customerPhone)}" style="color:#1a1a1a;">${escapeHtml(data.customerPhone)}</a>`) : ""}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 40px 8px;">
+              <p style="margin:0 0 8px;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">
+                ${escapeHtml(pluralServices(data.items.length))}
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${servicesHtml}
+                <tr>
+                  <td style="padding:14px 0 0;border-top:1px solid #eee;font-size:13px;color:#888;">Skupaj</td>
+                  <td style="padding:14px 0 0;border-top:1px solid #eee;font-size:15px;color:#1a1a1a;text-align:right;font-weight:600;">
+                    ${formatPrice(total)}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+${
+    data.notes
+        ? `
+          <tr>
+            <td style="padding:20px 40px 0;">
+              <p style="margin:0 0 8px;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;">Opomba stranke</p>
+              <p style="margin:0;font-size:15px;color:#1a1a1a;line-height:1.7;white-space:pre-wrap;">${escapeHtml(data.notes)}</p>
+            </td>
+          </tr>`
+        : ""
+}
+          <tr><td style="padding:0 40px 32px;"></td></tr>
+`);
+}
+
+/**
+ * Tells Karin a customer has booked. Only the public flow sends this — a
+ * booking she entered herself in the dashboard needs no announcement.
+ */
+export async function sendNewBookingNotification(
+    data: NewBookingNotificationData
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const first = data.items[0];
+        const { error } = await getResend().emails.send({
+            from: FROM_EMAIL,
+            replyTo: data.customerEmail,
+            to: [notificationRecipient()],
+            subject: `Nova rezervacija — ${formatDate(data.date)}${first ? ` ob ${first.time}` : ""} (${data.customerName})`,
+            html: buildNewBookingHtml(data),
+        });
+
+        if (error) {
+            console.error("[Email] Failed to send booking notification:", error);
+            return { success: false, error: error.message };
+        }
+        return { success: true };
+    } catch (err) {
+        console.error("[Email] Unexpected error:", err);
+        return { success: false, error: "Failed to send email" };
+    }
+}
+
+export interface LateCancellationRequestData {
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string | null;
+    date: string;
+    time: string;
+    hoursUntil: number;
+}
+
+function buildLateCancellationHtml(data: LateCancellationRequestData): string {
+    const row = (label: string, value: string) => `
+                    <tr>
+                      <td style="padding:8px 0;font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1.5px;width:110px;" valign="top">${label}</td>
+                      <td style="padding:8px 0;font-size:15px;color:#1a1a1a;" valign="top">${value}</td>
+                    </tr>`;
+
+    return emailShell("Stranka želi odpovedati termin", `
+          <tr>
+            <td style="padding:36px 40px 0;">
+              <p style="margin:0;font-size:14px;color:#888;text-transform:uppercase;letter-spacing:2px;">
+                Pozna odpoved
+              </p>
+              <h2 style="margin:8px 0 0;font-size:24px;color:#1a1a1a;font-family:Georgia,'Times New Roman',serif;font-weight:400;">
+                ${escapeHtml(data.customerName)}
+              </h2>
+              <p style="margin:12px 0 0;font-size:14px;color:#555;line-height:1.6;">
+                Stranka je prek povezave poskusila odpovedati termin, a je do začetka
+                manj kot 36 ur, zato odpoved prek spleta ni bila izvedena.
+                <strong style="color:#1a1a1a;">Termin je še vedno rezerviran.</strong>
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 40px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fff8f0;border-radius:12px;border:1px solid #f5e6d0;">
+                <tr>
+                  <td style="padding:22px 26px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      ${row("Termin", `${escapeHtml(formatDate(data.date))} ob ${escapeHtml(data.time)}`)}
+                      ${row("Do termina", `${Math.max(0, Math.round(data.hoursUntil))} ur`)}
+                      ${row("E-pošta", `<a href="mailto:${escapeHtml(data.customerEmail)}" style="color:#1a1a1a;">${escapeHtml(data.customerEmail)}</a>`)}
+                      ${data.customerPhone ? row("Telefon", `<a href="tel:${escapeHtml(data.customerPhone)}" style="color:#1a1a1a;">${escapeHtml(data.customerPhone)}</a>`) : ""}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 40px 32px;">
+              <p style="margin:0;font-size:13px;color:#888;line-height:1.6;">
+                Če se s stranko dogovorite za odpoved ali prestavitev, termin uredite
+                v koledarju. Če se ne oglasi, je verjetnost neudeležbe večja.
+              </p>
+            </td>
+          </tr>
+`);
+}
+
+/**
+ * Sent when a customer explicitly asks the salon to cancel an appointment that
+ * is already inside the 36-hour notice window.
+ *
+ * This is a deliberate click on the cancellation page, not an automatic signal.
+ * It cannot hang off the page load: e-mail scanners and browser prefetch issue
+ * GETs against cancellation links, so notifying on load would fire for every
+ * booking whose link happened to be scanned after the window closed.
+ */
+export async function sendLateCancellationRequest(
+    data: LateCancellationRequestData
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { error } = await getResend().emails.send({
+            from: FROM_EMAIL,
+            replyTo: data.customerEmail,
+            to: [notificationRecipient()],
+            subject: `Pozna odpoved — ${data.customerName}, ${formatDate(data.date)} ob ${data.time}`,
+            html: buildLateCancellationHtml(data),
+        });
+
+        if (error) {
+            console.error("[Email] Failed to send late-cancellation notice:", error);
+            return { success: false, error: error.message };
+        }
+        return { success: true };
+    } catch (err) {
+        console.error("[Email] Unexpected error:", err);
+        return { success: false, error: "Failed to send email" };
+    }
+}
+
 /**
  * Sent when the admin moves an appointment in the dashboard calendar and
  * chooses to notify the customer. Opt-in rather than automatic: plenty of

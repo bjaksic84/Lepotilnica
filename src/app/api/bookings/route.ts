@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { noShows } from "@/db/schema";
 import { bookingSchema, multiBookingSchema } from "@/lib/validators";
 import { eq } from "drizzle-orm";
-import { sendBookingConfirmation } from "@/lib/email";
+import { sendBookingConfirmation, sendNewBookingNotification } from "@/lib/email";
 import { runAfterResponse } from "@/lib/after-response";
 import { bookingLimiter, getClientIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createBookings } from "@/lib/booking-service";
@@ -78,25 +78,50 @@ export async function POST(request: Request) {
         }
         const createdBookings = result.created;
 
-        // ── Send confirmation email (after the response) ─────────
-        // Must go through runAfterResponse: a bare floating promise is
+        // ── Send e-mails (after the response) ────────────────────
+        // Two of them: the customer's confirmation and Karin's heads-up. Both
+        // must go through runAfterResponse — a bare floating promise is
         // cancelled when the Worker returns, which silently dropped every
-        // confirmation e-mail.
-        await runAfterResponse(
-            sendBookingConfirmation({
-                customerEmail: validatedData.customerEmail,
-                date,
-                items: createdBookings.map(b => ({
-                    serviceName: b.serviceName,
-                    servicePrice: b.servicePrice,
-                    serviceDuration: b.serviceDuration,
-                    time: b.time,
-                    cancellationToken: b.cancellationToken,
-                })),
-            }).then((res) => {
-                if (!res.success) console.error("[Email] Send failed:", res.error);
-            }).catch((err) => console.error("[Email] Background send failed:", err))
-        );
+        // confirmation e-mail. Each carries its own logging and catch, so one
+        // failing neither hides the other nor turns a good booking into a 500.
+        //
+        // Only the public flow notifies Karin. A booking she entered herself in
+        // the dashboard goes through /api/admin/bookings and needs no telling.
+        const confirmation = sendBookingConfirmation({
+            customerEmail: validatedData.customerEmail,
+            date,
+            items: createdBookings.map(b => ({
+                serviceName: b.serviceName,
+                servicePrice: b.servicePrice,
+                serviceDuration: b.serviceDuration,
+                time: b.time,
+                cancellationToken: b.cancellationToken,
+            })),
+        })
+            .then((res) => {
+                if (!res.success) console.error("[Email] Confirmation failed:", res.error);
+            })
+            .catch((err) => console.error("[Email] Confirmation threw:", err));
+
+        const notification = sendNewBookingNotification({
+            customerName: validatedData.customerName,
+            customerEmail: validatedData.customerEmail,
+            customerPhone: validatedData.customerPhone ?? null,
+            date,
+            notes: validatedData.notes ?? null,
+            items: createdBookings.map(b => ({
+                serviceName: b.serviceName,
+                servicePrice: b.servicePrice,
+                serviceDuration: b.serviceDuration,
+                time: b.time,
+            })),
+        })
+            .then((res) => {
+                if (!res.success) console.error("[Email] Booking notification failed:", res.error);
+            })
+            .catch((err) => console.error("[Email] Booking notification threw:", err));
+
+        await runAfterResponse(Promise.all([confirmation, notification]));
 
         return NextResponse.json(createdBookings, { status: 201 });
     } catch (error) {

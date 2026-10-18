@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { BUSINESS } from "@/lib/site";
 
 type BookingSummary = { date: string; time: string; customerName: string };
 type LoadState = "cancellable" | "already_cancelled" | "too_late";
@@ -18,6 +19,11 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
     const [cancelling, setCancelling] = useState(false);
     const [cancelError, setCancelError] = useState<string | null>(null);
     const [done, setDone] = useState(false);
+
+    // "Let the salon know", offered only in the too-late state.
+    const [notifying, setNotifying] = useState(false);
+    const [notifyError, setNotifyError] = useState<string | null>(null);
+    const [notified, setNotified] = useState(false);
 
     // Read-only load of the booking's details. Crucially this does NOT cancel —
     // the cancellation only happens when the customer clicks confirm below, so
@@ -61,6 +67,29 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
             setCancelError("Napaka omrežja. Prosimo, preverite povezavo in poskusite znova.");
         } finally {
             setCancelling(false);
+        }
+    };
+
+    /**
+     * Tells the salon the customer needs to cancel inside the notice window.
+     * Changes nothing about the booking — only Karin can release a slot this
+     * close to the start — so the copy promises a message, not a cancellation.
+     */
+    const notifySalon = async () => {
+        setNotifying(true);
+        setNotifyError(null);
+        try {
+            const res = await fetch(`/api/cancel/${token}/notify`, { method: "POST" });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setNotified(true);
+            } else {
+                setNotifyError(data.error || "Sporočila ni bilo mogoče poslati. Prosimo, pokličite nas.");
+            }
+        } catch {
+            setNotifyError("Napaka omrežja. Prosimo, preverite povezavo in poskusite znova.");
+        } finally {
+            setNotifying(false);
         }
     };
 
@@ -154,9 +183,42 @@ export default function CancelPage({ params }: { params: Promise<{ token: string
                     {errorIcon}
                     <h2 className="font-playfair text-xl text-charcoal mb-2">Preklic ni mogoč</h2>
                     <p className="text-charcoal/50 text-sm leading-relaxed mb-6">
-                        Termin je mogoče preklicati prek te povezave najkasneje 36 ur pred začetkom. Za pomoč nas prosimo kontaktirajte.
+                        Termin je mogoče preklicati prek te povezave najkasneje 36 ur pred začetkom.
+                        {!notified && " Lahko pa nam sporočite, da ne morete priti — salon bo obveščen, termin pa ostane rezerviran, dokler se ne dogovorimo."}
                     </p>
                     {bookingCard}
+
+                    {notified ? (
+                        <div className="bg-green-50 rounded-xl p-4 text-sm text-charcoal/70 mb-6">
+                            <p className="font-medium text-charcoal">Sporočilo je bilo poslano.</p>
+                            <p className="mt-1">
+                                Salon vas bo kontaktiral. Če se vam mudi, nas pokličite na{" "}
+                                <a href={`tel:${BUSINESS.phone}`} className="text-charcoal underline">
+                                    {BUSINESS.phoneDisplay}
+                                </a>.
+                            </p>
+                        </div>
+                    ) : (
+                        <>
+                            {notifyError && (
+                                <p className="text-red-500 text-sm mb-4">{notifyError}</p>
+                            )}
+                            <button
+                                onClick={notifySalon}
+                                disabled={notifying}
+                                className="inline-block px-8 py-3 mb-4 bg-charcoal text-porcelain rounded-full text-sm font-medium hover:bg-charcoal/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {notifying ? "Pošiljanje …" : "Sporočite salonu"}
+                            </button>
+                            <p className="text-charcoal/40 text-xs mb-6">
+                                Ali nas pokličite na{" "}
+                                <a href={`tel:${BUSINESS.phone}`} className="underline">
+                                    {BUSINESS.phoneDisplay}
+                                </a>.
+                            </p>
+                        </>
+                    )}
+
                     {homeLink}
                 </>
             );

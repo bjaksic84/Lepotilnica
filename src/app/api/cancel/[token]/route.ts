@@ -3,8 +3,11 @@ import { db } from "@/db";
 import { bookings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { cancelLimiter, getClientIp, enforceRateLimit } from "@/lib/rate-limit";
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import {
+    CANCELLATION_NOTICE_HOURS,
+    CANCEL_TOKEN_REGEX,
+    isInsideNoticeWindow,
+} from "@/lib/cancellation";
 
 type Booking = typeof bookings.$inferSelect;
 
@@ -24,7 +27,7 @@ async function loadBooking(
         };
     }
 
-    if (!UUID_REGEX.test(token)) {
+    if (!CANCEL_TOKEN_REGEX.test(token)) {
         return { error: NextResponse.json({ error: "Invalid cancellation link." }, { status: 400 }) };
     }
 
@@ -47,18 +50,6 @@ async function loadBooking(
 }
 
 /**
- * Notice period for a fee-free cancellation, per the terms of service
- * (/pogoji, §3). Changing it here means changing it in the ToS page, the
- * confirmation e-mail, the cancellation page and the homepage FAQ too.
- */
-const CANCELLATION_NOTICE_HOURS = 36;
-
-function hoursUntil(booking: Booking): number {
-    const appointmentDateTime = new Date(`${booking.date}T${booking.time}:00`);
-    return (appointmentDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
-}
-
-/**
  * Read-only. Returns the booking's cancellation state so the page can render a
  * summary and an explicit confirm button. MUST NOT mutate — email link
  * scanners and browser prefetch routinely issue GETs against links in emails.
@@ -78,7 +69,7 @@ export async function GET(
         if (booking.status === "cancelled") {
             return NextResponse.json({ state: "already_cancelled", booking: summary });
         }
-        if (hoursUntil(booking) < CANCELLATION_NOTICE_HOURS) {
+        if (isInsideNoticeWindow(booking)) {
             return NextResponse.json({ state: "too_late", booking: summary });
         }
         return NextResponse.json({ state: "cancellable", booking: summary });
@@ -109,7 +100,7 @@ export async function POST(
             );
         }
 
-        if (hoursUntil(booking) < CANCELLATION_NOTICE_HOURS) {
+        if (isInsideNoticeWindow(booking)) {
             return NextResponse.json(
                 {
                     error: `Cancellations must be made at least ${CANCELLATION_NOTICE_HOURS} hours before the appointment.`,
