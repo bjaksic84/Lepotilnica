@@ -4,11 +4,19 @@
     "main": ".open-next/worker.js",
     "compatibility_date": "2025-03-01",
     "compatibility_flags": ["nodejs_compat"],
-    // The site is served from the custom domain lepotilnicabykarin.si (attached
-    // via the Cloudflare dashboard). Disable the *.workers.dev host so the same
-    // content isn't reachable on two origins — Google treats that as duplicate
-    // content and it competes with the apex domain for ranking signals.
-    "workers_dev": false,
+    // The site will be served from the custom domain lepotilnicabykarin.si.
+    // That domain is deliberately detached until launch (a customer found the
+    // site and booked before it was ready), so the *.workers.dev host is
+    // currently the only way to reach the deployed Worker, for our own testing.
+    //
+    // FLIP BACK TO false AT LAUNCH, when the custom domain is re-attached:
+    // serving the same content on two origins is duplicate content, and the
+    // workers.dev host would compete with the apex for ranking signals.
+    // Canonicals and sitemap.xml already point only at the apex, which limits
+    // that but does not remove it. Don't link the workers.dev URL anywhere
+    // public in the meantime — its canonical points at the apex, which does
+    // not serve the site yet.
+    "workers_dev": true,
     "assets": {
         "directory": ".open-next/assets",
         "binding": "ASSETS"
