@@ -164,17 +164,13 @@ scrambling during it.
 
 ## 5. Known debt
 
-- **Drop the old `no_shows` table — but only after the customer-insight code
-  is deployed.** No-shows are now counted from the bookings marked as such
-  (`booking_absences`), so the new code never touches it. The code deployed
-  before that still reads it on every online booking, so dropping it first
-  would break booking.
 - **`__drizzle_migrations` is empty in production.** The schema was built with
   `drizzle-kit push`, so no migration has ever been recorded there. Running
   `drizzle-kit migrate` would try to replay `0000` and collide with the
-  existing tables. `login_attempts` (0004) and the customer-insight tables
-  (0005, applied 25 October 2026) went in by hand for this reason. The next
-  schema change needs this resolved one way or the other.
+  existing tables. `login_attempts` (0004), the customer-insight tables (0005)
+  and the drop of the old `no_shows` table (0006, both 25 October 2026) went
+  in by hand for this reason. The next schema change needs this resolved one
+  way or the other.
 - **Rate limits on bookings, contact and cancel are approximate.** Admin login
   is exact, counted in Turso (`src/lib/login-attempts.ts`). The other three
   rely on the Cloudflare binding, which measurably leaks — 20 requests one

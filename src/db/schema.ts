@@ -59,27 +59,8 @@ export type NewCategory = typeof categories.$inferInsert;
 export type Service = typeof services.$inferSelect;
 export type NewService = typeof services.$inferInsert;
 
-/**
- * Superseded: the old per-e-mail no-show counter. Nothing reads or writes it
- * any more — no-shows are now marked per booking (`booking_absences`) and the
- * blacklist is kept per customer (`customer_blacklist`). Left in place rather
- * than dropped; its only production row was a test.
- */
-export const noShows = sqliteTable("no_shows", {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    customerEmail: text("customer_email").notNull().unique(),
-    count: integer("count").default(0).notNull(),
-    lastNoShowDate: text("last_no_show_date"),
-    createdAt: text("created_at")
-        .default(sql`CURRENT_TIMESTAMP`)
-        .notNull(),
-});
-
 export type BlockedTime = typeof blockedTimes.$inferSelect;
 export type NewBlockedTime = typeof blockedTimes.$inferInsert;
-
-export type NoShow = typeof noShows.$inferSelect;
-export type NewNoShow = typeof noShows.$inferInsert;
 
 export const customerNotes = sqliteTable("customer_notes", {
     id: integer("id").primaryKey({ autoIncrement: true }),
