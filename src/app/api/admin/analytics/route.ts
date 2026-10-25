@@ -3,15 +3,20 @@ import { db } from "@/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { bookings, services } from "@/db/schema";
 import { eq, and, gte, lte, not, sql, desc, count } from "drizzle-orm";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { customerKey } from "@/lib/customer-identity";
+import { salonNow } from "@/lib/schedule";
 
 export async function GET() {
     const unauth = await requireAdmin();
     if (unauth) return unauth;
 
     try {
-        const now = new Date();
+        // The salon's calendar day, not the server's: Workers run in UTC, where
+        // the first hour or two of every Ljubljana day is still yesterday — and
+        // on the 1st, still last month.
+        const today = salonNow().date;
+        const now = parseISO(today);
         const thisMonthStart = format(startOfMonth(now), "yyyy-MM-dd");
         const thisMonthEnd = format(endOfMonth(now), "yyyy-MM-dd");
         const lastMonthStart = format(startOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
@@ -169,7 +174,6 @@ export async function GET() {
         }
 
         // Upcoming bookings today
-        const today = format(now, "yyyy-MM-dd");
         const todaysBookings = confirmedThisMonth
             .filter(b => b.date === today)
             .sort((a, b) => a.time.localeCompare(b.time));
