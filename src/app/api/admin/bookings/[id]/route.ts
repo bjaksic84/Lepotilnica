@@ -120,9 +120,12 @@ export async function PATCH(
 
         await db.update(bookings).set(update).where(eq(bookings.id, bookingId));
 
-        // Only notify on an actual change of date/time, and only when asked.
+        // Only notify on an actual change of date/time, only when asked, and
+        // only when there is an address: customers Karin entered by hand may
+        // have none.
         const moved = isMove && (newDate !== existing.date || newTime !== existing.time);
-        if (moved && notifyCustomer && existing.customerEmail) {
+        const notified = moved && !!notifyCustomer && !!existing.customerEmail;
+        if (notified) {
             // See runAfterResponse: on Workers a floating promise is cancelled
             // as soon as the response is returned.
             await runAfterResponse(
@@ -143,7 +146,7 @@ export async function PATCH(
             );
         }
 
-        return NextResponse.json({ success: true, date: newDate, time: newTime, notified: !!(moved && notifyCustomer) });
+        return NextResponse.json({ success: true, date: newDate, time: newTime, notified });
     } catch (error) {
         console.error("Admin booking update error:", error);
         return NextResponse.json({ error: "Failed to update booking" }, { status: 500 });

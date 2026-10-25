@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { bookings, services } from "@/db/schema";
 import { desc, and, gte, lte, eq } from "drizzle-orm";
-import { multiBookingSchema } from "@/lib/validators";
+import { adminBookingSchema } from "@/lib/validators";
 import { createBookings } from "@/lib/booking-service";
 import { sendBookingConfirmation } from "@/lib/email";
 import { runAfterResponse } from "@/lib/after-response";
@@ -67,7 +67,9 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const result = multiBookingSchema.safeParse(body);
+        // The e-mail is optional here, unlike online: Karin books clients who
+        // have only ever given her a phone number.
+        const result = adminBookingSchema.safeParse(body);
         if (!result.success) {
             return NextResponse.json(
                 { error: "Validation failed", details: result.error.flatten().fieldErrors },
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: created.error }, { status: created.status });
         }
 
-        if (body.sendConfirmation !== false) {
+        if (body.sendConfirmation !== false && result.data.customerEmail) {
             // See runAfterResponse: on Workers a floating promise is cancelled
             // when the response is returned, which dropped the e-mail entirely.
             await runAfterResponse(

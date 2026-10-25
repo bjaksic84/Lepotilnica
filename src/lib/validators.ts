@@ -52,9 +52,21 @@ export const multiBookingSchema = z.object({
 
 export type MultiBookingFormData = z.infer<typeof multiBookingSchema>;
 
+/**
+ * Karin's own entries may leave the e-mail out: clients from her old booking
+ * system often have only a phone number. Online bookings still require one
+ * (multiBookingSchema above) — it is how the customer gets their confirmation
+ * and cancellation link.
+ */
+const optionalEmail = customerFields.customerEmail.or(z.literal("")).default("");
+
+/** A booking Karin enters by hand in the dashboard. */
+export const adminBookingSchema = multiBookingSchema.extend({ customerEmail: optionalEmail });
+
 /** Adding a customer in Logs, before they have booked. */
 export const newCustomerSchema = z.object({
     ...customerFields,
+    customerEmail: optionalEmail,
     note: z.string().max(2000, "Opomba je predolga (največ 2000 znakov)").optional(),
 });
 
@@ -62,6 +74,7 @@ export const newCustomerSchema = z.object({
 export const editCustomerSchema = z.object({
     key: z.string().min(3),
     ...customerFields,
+    customerEmail: optionalEmail,
     merge: z.boolean().optional(),
 });
 

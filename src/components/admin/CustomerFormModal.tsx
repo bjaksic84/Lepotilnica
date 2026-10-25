@@ -50,7 +50,7 @@ export default function CustomerFormModal({
 
     const submit = async () => {
         setError(null);
-        if (!name.trim() || !phone.trim() || !email.trim()) return setError("Name, phone and e-mail are all required.");
+        if (!name.trim() || !phone.trim()) return setError("Name and phone are required.");
         setSubmitting(true);
         try {
             const message = await onSubmit({
@@ -101,7 +101,7 @@ export default function CustomerFormModal({
                             <input value={phone} onChange={(e) => setPhone(e.target.value)} className={`mt-1.5 ${inputClass}`} placeholder="+386 40 123 456" inputMode="tel" autoComplete="off" />
                         </div>
                         <div>
-                            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">E-mail</label>
+                            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">E-mail <span className="normal-case text-gray-300">(optional)</span></label>
                             <input value={email} onChange={(e) => setEmail(e.target.value)} className={`mt-1.5 ${inputClass}`} placeholder="ime@email.com" inputMode="email" autoComplete="off" />
                         </div>
                     </div>
@@ -110,6 +110,9 @@ export default function CustomerFormModal({
                             <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Note <span className="normal-case text-gray-300">(optional)</span></label>
                             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={2000} className={`mt-1.5 ${inputClass} resize-none`} placeholder="Preferences, allergies, how they found the salon..." />
                         </div>
+                    )}
+                    {!email.trim() && (
+                        <p className="text-[11px] text-gray-400">Without an e-mail they get no booking confirmations or reminders of changes; online they would still have to give one.</p>
                     )}
                     {hint && <p className="text-[11px] text-gray-400">{hint}</p>}
                     {error && <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">{error}</div>}

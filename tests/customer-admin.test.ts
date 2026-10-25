@@ -179,6 +179,50 @@ describe("customer admin", () => {
         });
     });
 
+    describe("customers without an e-mail", () => {
+        const mojca = { name: "Mojca Zupan", email: "", phone: "070 111 222" };
+        const mojcaKey = customerKey("", mojca.phone);
+
+        it("can be added, and receive Karin's bookings", async () => {
+            expect(await createCustomer(mojca, "From Limebooking")).toEqual({ ok: true, key: mojcaKey });
+            await book({ ...mojca, phone: "+386 70 111 222" }, upcomingDate);
+
+            const customer = (await customerAt(mojcaKey))!;
+            expect(customer).toMatchObject({ name: "Mojca Zupan", email: "", upcoming: 1, adminNotesCount: 1 });
+            expect((await getCustomerHistory(mojcaKey))!.upcoming).toHaveLength(1);
+        });
+
+        it("are not linked to each other for having no e-mail", async () => {
+            await createCustomer(mojca);
+            await createCustomer({ name: "Petra Kos", email: "", phone: "041 333 444" });
+            const customers = await getCustomerSummaries();
+            expect(customers).toHaveLength(2);
+            for (const c of customers) expect(c.related).toEqual([]);
+        });
+
+        it("are linked by phone to the same number with an e-mail, and merge once it is added", async () => {
+            await createCustomer(mojca);
+            await book(mojca);
+            await book({ ...mojca, email: "mojca@example.com" });
+            const linked = (await customerAt(mojcaKey))!;
+            expect(linked.related).toEqual([expect.objectContaining({ sharedBy: "phone", email: "mojca@example.com" })]);
+
+            const result = await updateCustomer(mojcaKey, { ...mojca, email: "mojca@example.com" }, { merge: true });
+            expect(result).toMatchObject({ ok: true, merged: true });
+            const customers = await getCustomerSummaries();
+            expect(customers).toHaveLength(1);
+            expect(customers[0]).toMatchObject({ email: "mojca@example.com", visits: 2 });
+        });
+
+        it("can be deleted like anyone else", async () => {
+            const id = await book(mojca);
+            expect(await anonymiseCustomer(mojcaKey)).toMatchObject({ ok: true, anonymisedBookings: 1 });
+            const [row] = await db.select().from(bookings).where(eq(bookings.id, id));
+            expect(row).toMatchObject({ customerName: ANONYMISED_NAME, customerEmail: "", customerPhone: null });
+            expect(await getCustomerSummaries()).toEqual([]);
+        });
+    });
+
     describe("delete", () => {
         it("is refused while the customer has an appointment to come", async () => {
             await book(ana);

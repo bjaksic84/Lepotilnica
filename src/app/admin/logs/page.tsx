@@ -599,7 +599,7 @@ export default function AdminLogsPage() {
                                                 )}
                                             </div>
                                             <div className="text-xs text-gray-400 truncate">
-                                                {customer.email}{customer.phone && ` · ${customer.phone}`}
+                                                {[customer.email, customer.phone].filter(Boolean).join(" · ")}
                                             </div>
                                         </div>
 
@@ -671,11 +671,11 @@ export default function AdminLogsPage() {
                                             {/* Contact Info */}
                                             <div className="space-y-2">
                                                 <div className="flex flex-wrap gap-4 text-sm">
-                                                    <div className="flex items-center gap-2 text-gray-600 min-w-0">
+                                                    <div className={`flex items-center gap-2 min-w-0 ${customer.email ? "text-gray-600" : "text-gray-400 italic"}`}>
                                                         <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                                         </svg>
-                                                        <span className="truncate">{customer.email}</span>
+                                                        <span className="truncate">{customer.email || "No e-mail"}</span>
                                                     </div>
                                                     {customer.phone && (
                                                         <div className="flex items-center gap-2 text-gray-600">
@@ -708,7 +708,7 @@ export default function AdminLogsPage() {
                                                                 {r.blacklisted && (
                                                                     <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700 tracking-wide align-middle">Blacklisted</span>
                                                                 )}
-                                                                <span className="text-amber-700"> · same {r.sharedBy === "email" ? "e-mail" : "phone"}, different {r.sharedBy === "email" ? `phone (${r.phone ?? "none"})` : `e-mail (${r.email})`}</span>
+                                                                <span className="text-amber-700"> · same {r.sharedBy === "email" ? "e-mail" : "phone"}, different {r.sharedBy === "email" ? `phone (${r.phone ?? "none"})` : `e-mail (${r.email || "none"})`}</span>
                                                                 <span className="text-amber-500"> →</span>
                                                             </button>
                                                         ))}

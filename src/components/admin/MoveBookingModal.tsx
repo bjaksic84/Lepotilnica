@@ -48,7 +48,9 @@ export default function MoveBookingModal({
 }) {
     const [date, setDate] = useState(targetDate);
     const [time, setTime] = useState(targetTime);
-    const [notify, setNotify] = useState(true);
+    // Customers Karin entered by hand may have no e-mail to notify.
+    const canNotify = !!booking.customerEmail?.trim();
+    const [notify, setNotify] = useState(canNotify);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -86,7 +88,7 @@ export default function MoveBookingModal({
             const res = await fetch(`/api/admin/bookings/${booking.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ date, time, notifyCustomer: notify }),
+                body: JSON.stringify({ date, time, notifyCustomer: notify && canNotify }),
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
@@ -177,11 +179,15 @@ export default function MoveBookingModal({
                         </div>
                     )}
 
-                    <label className="flex items-center gap-2.5 text-sm text-gray-600 cursor-pointer select-none">
-                        <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="w-4 h-4 rounded accent-yellow-500" />
-                        Obvesti stranko po e-pošti
-                    </label>
-                    {notify && (
+                    {canNotify ? (
+                        <label className="flex items-center gap-2.5 text-sm text-gray-600 cursor-pointer select-none">
+                            <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="w-4 h-4 rounded accent-yellow-500" />
+                            Obvesti stranko po e-pošti
+                        </label>
+                    ) : (
+                        <p className="text-xs text-gray-400">Stranka nima e-pošte, zato obvestila ni mogoče poslati.</p>
+                    )}
+                    {notify && canNotify && (
                         <p className="-mt-2 text-[11px] text-gray-400 pl-7">
                             Na {booking.customerEmail} pošljemo obvestilo o spremembi termina.
                         </p>

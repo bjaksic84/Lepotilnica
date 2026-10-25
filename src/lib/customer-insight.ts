@@ -154,10 +154,15 @@ const dayNumber = (date: string) => {
 const byStartAsc = (a: { date: string; time: string }, b: { date: string; time: string }) =>
     `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`);
 
-/** Does an admin note belong to this customer? Legacy notes carry no phone. */
+/**
+ * Does an admin note belong to this customer? Older notes carry no phone and
+ * belong to every customer with their e-mail — which needs an e-mail to mean
+ * anything, or they would attach to every customer who has none.
+ */
 function noteMatches(note: InsightNote, email: string, phone: string): boolean {
     if (normalizeEmail(note.customerEmail) !== email) return false;
-    return note.customerPhone === null || normalizePhone(note.customerPhone) === phone;
+    if (note.customerPhone === null) return email !== "";
+    return normalizePhone(note.customerPhone) === phone;
 }
 
 function summarise(key: string, rows: InsightBooking[], now: SalonClock, profile?: InsightProfile): CustomerSummary {
@@ -270,7 +275,7 @@ export function buildCustomerSummaries(
     const groups = new Map<string, InsightBooking[]>();
     for (const r of rows) {
         // A deleted customer's bookings are kept for revenue but belong to no one.
-        if (isAnonymised(r.customerEmail)) continue;
+        if (isAnonymised(r.customerEmail, r.customerPhone)) continue;
         const key = customerKey(r.customerEmail, r.customerPhone);
         const group = groups.get(key);
         if (group) group.push(r);
@@ -300,14 +305,15 @@ export function buildCustomerSummaries(
         }
         // A note whose customer has no bookings left (all deleted) still shows.
         const key = customerKey(email, note.customerPhone);
-        summaries.set(key, { ...emptySummary(key, note.customerEmail, note.customerEmail, note.customerPhone), adminNotesCount: 1 });
+        const label = note.customerEmail || note.customerPhone || "";
+        summaries.set(key, { ...emptySummary(key, label, note.customerEmail, note.customerPhone), adminNotesCount: 1 });
     }
 
     // So does a blacklisted one: otherwise there would be no way to lift it.
     for (const [key, status] of blacklist) {
         if (!status.blacklisted || summaries.has(key)) continue;
         const { email, phone } = parseCustomerKey(key)!;
-        summaries.set(key, { ...emptySummary(key, email, email, phone || null), blacklistOnly: true });
+        summaries.set(key, { ...emptySummary(key, email || phone, email, phone || null), blacklistOnly: true });
     }
     for (const s of summaries.values()) s.blacklist = blacklist.get(s.key) ?? CLEAR_STATUS;
 
@@ -317,7 +323,7 @@ export function buildCustomerSummaries(
     const byPhone = new Map<string, CustomerSummary[]>();
     for (const s of summaries.values()) {
         const { email, phone } = parseCustomerKey(s.key)!;
-        byEmail.set(email, [...(byEmail.get(email) ?? []), s]);
+        if (email) byEmail.set(email, [...(byEmail.get(email) ?? []), s]);
         if (phone) byPhone.set(phone, [...(byPhone.get(phone) ?? []), s]);
     }
     for (const s of summaries.values()) {
@@ -335,7 +341,7 @@ export function buildCustomerSummaries(
                 });
             }
         };
-        link(byEmail.get(email), "email");
+        if (email) link(byEmail.get(email), "email");
         if (phone) link(byPhone.get(phone), "phone");
     }
 
@@ -449,7 +455,7 @@ export async function getCustomerSummaries(now: SalonClock = salonNow()): Promis
     ]);
     // The rows already carry each booking's no-show mark.
     const noShowKeys = rows
-        .filter((r) => r.noShow && !isAnonymised(r.customerEmail))
+        .filter((r) => r.noShow && !isAnonymised(r.customerEmail, r.customerPhone))
         .map((r) => customerKey(r.customerEmail, r.customerPhone));
     return buildCustomerSummaries(rows, notes, buildBlacklistStatuses(noShowKeys, entries), now, profiles);
 }

@@ -17,6 +17,11 @@
  * getting a second record; the Logs page links records that share an e-mail
  * or a phone so it is visible rather than silent.
  *
+ * The e-mail may be empty. Online bookings always carry one, but Karin's own
+ * entries need not — clients from her old booking system often have only a
+ * number — and then the phone alone identifies them: "" + phone is a pair
+ * like any other.
+ *
  * Pure and dependency-free: the manual booking form runs this in the browser
  * to tell Karin whether she is about to create a new customer.
  */
@@ -28,9 +33,13 @@
  */
 export const ANONYMISED_NAME = "Izbrisana stranka";
 
-/** A booking whose customer was deleted carries no e-mail. */
-export function isAnonymised(email: string | null | undefined): boolean {
-    return !email || !email.trim();
+/**
+ * A booking whose customer was deleted carries neither an e-mail nor a phone.
+ * Neither alone is enough: Karin's customers may have no e-mail, but every
+ * real booking has a phone number.
+ */
+export function isAnonymised(email: string | null | undefined, phone: string | null | undefined): boolean {
+    return !email?.trim() && !phone?.trim();
 }
 
 export function normalizeEmail(email: string): string {
@@ -77,6 +86,10 @@ export function customerKey(email: string, phone: string | null | undefined): st
 /** Inverse of customerKey. Normalised e-mails never contain "|". */
 export function parseCustomerKey(key: string): { email: string; phone: string } | null {
     const split = key.lastIndexOf("|");
-    if (split <= 0) return null;
-    return { email: key.slice(0, split), phone: key.slice(split + 1) };
+    if (split < 0) return null;
+    const email = key.slice(0, split);
+    const phone = key.slice(split + 1);
+    // Either may be empty, not both: that is nobody (an anonymised booking).
+    if (!email && !phone) return null;
+    return { email, phone };
 }

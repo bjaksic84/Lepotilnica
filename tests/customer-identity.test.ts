@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { customerKey, normalizeEmail, normalizePhone, parseCustomerKey } from "@/lib/customer-identity";
+import { customerKey, isAnonymised, normalizeEmail, normalizePhone, parseCustomerKey } from "@/lib/customer-identity";
+import { adminBookingSchema, editCustomerSchema, multiBookingSchema, newCustomerSchema } from "@/lib/validators";
 import { salonNow } from "@/lib/schedule";
 
 /**
@@ -85,6 +86,43 @@ describe("customer identity", () => {
         const key = customerKey("Ana@Example.com", "031 222 333");
         expect(parseCustomerKey(key)).toEqual({ email: "ana@example.com", phone: "+38631222333" });
         expect(parseCustomerKey("no-separator")).toBeNull();
+    });
+
+    describe("customers without an e-mail", () => {
+        it("are identified by the phone alone", () => {
+            const key = customerKey("", "040 123 456");
+            expect(key).toBe("|+38640123456");
+            expect(parseCustomerKey(key)).toEqual({ email: "", phone: "+38640123456" });
+            expect(customerKey("  ", "+386 40 123 456")).toBe(key);
+        });
+
+        it("are not mistaken for deleted ones, which have neither", () => {
+            expect(isAnonymised("", "040 123 456")).toBe(false);
+            expect(isAnonymised("ana@example.com", null)).toBe(false);
+            expect(isAnonymised("", null)).toBe(true);
+            expect(parseCustomerKey("|")).toBeNull();
+        });
+    });
+
+    describe("which forms require an e-mail", () => {
+        const booking = { customerName: "Ana Novak", customerPhone: "040 123 456", serviceIds: [1], date: "2026-11-02", time: "10:00" };
+
+        it("still requires one online", () => {
+            expect(multiBookingSchema.safeParse({ ...booking, customerEmail: "" }).success).toBe(false);
+            expect(multiBookingSchema.safeParse(booking).success).toBe(false);
+        });
+
+        it("lets Karin leave it out, but not get it wrong", () => {
+            expect(adminBookingSchema.safeParse(booking).data?.customerEmail).toBe("");
+            expect(adminBookingSchema.safeParse({ ...booking, customerEmail: "ana@" }).success).toBe(false);
+            expect(newCustomerSchema.safeParse({ customerName: "Ana Novak", customerPhone: "040 123 456" }).data?.customerEmail).toBe("");
+            expect(editCustomerSchema.safeParse({ key: "|+38640123456", customerName: "Ana Novak", customerPhone: "040 123 456", customerEmail: "" }).success).toBe(true);
+        });
+
+        it("still requires a phone everywhere", () => {
+            expect(adminBookingSchema.safeParse({ ...booking, customerPhone: "" }).success).toBe(false);
+            expect(newCustomerSchema.safeParse({ customerName: "Ana Novak", customerEmail: "ana@example.com" }).success).toBe(false);
+        });
     });
 });
 

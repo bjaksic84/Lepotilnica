@@ -201,6 +201,12 @@ describe("blacklist", () => {
             expect(body.error).not.toMatch(/no-show|Rude/i);
         });
 
+        it("still requires an e-mail, which Karin's own entries do not", async () => {
+            const res = await bookOnline({ ...ana, customerEmail: "" });
+            expect(res.status).toBe(400);
+            expect((await res.json()).details.customerEmail).toBeDefined();
+        });
+
         it("accepts the same e-mail with a different phone number", async () => {
             await blacklistCustomer(ana.customerEmail, ana.customerPhone, null);
             const res = await bookOnline({ ...ana, customerPhone: "041 999 888" });

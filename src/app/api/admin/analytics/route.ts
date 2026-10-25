@@ -120,7 +120,7 @@ export async function GET() {
         const sortedAll = [...allBookings].sort((a, b) => a.date.localeCompare(b.date));
         for (const b of sortedAll) {
             // Deleted customers' bookings still count as revenue, not as a customer.
-            if (isAnonymised(b.customerEmail)) continue;
+            if (isAnonymised(b.customerEmail, b.customerPhone)) continue;
             const key = customerKey(b.customerEmail, b.customerPhone);
             if (!customerFirstBooking[key]) {
                 customerFirstBooking[key] = b.date;
@@ -132,7 +132,7 @@ export async function GET() {
         const seenThisMonth = new Set<string>();
         for (const b of confirmedThisMonth) {
             // Deleted customers' bookings still count as revenue, not as a customer.
-            if (isAnonymised(b.customerEmail)) continue;
+            if (isAnonymised(b.customerEmail, b.customerPhone)) continue;
             const key = customerKey(b.customerEmail, b.customerPhone);
             if (seenThisMonth.has(key)) continue;
             seenThisMonth.add(key);
@@ -198,7 +198,7 @@ export async function GET() {
 
         for (const b of sortedAll) {
             // Deleted customers' bookings still count as revenue, not as a customer.
-            if (isAnonymised(b.customerEmail)) continue;
+            if (isAnonymised(b.customerEmail, b.customerPhone)) continue;
             const key = customerKey(b.customerEmail, b.customerPhone);
             const month = b.date.slice(0, 7); // YYYY-MM
             if (!customerStats[key]) {
@@ -228,7 +228,7 @@ export async function GET() {
         const customerServiceCount: Record<string, Record<string, number>> = {};
         for (const b of sortedAll) {
             // Deleted customers' bookings still count as revenue, not as a customer.
-            if (isAnonymised(b.customerEmail)) continue;
+            if (isAnonymised(b.customerEmail, b.customerPhone)) continue;
             const key = customerKey(b.customerEmail, b.customerPhone);
             const svcName = b.serviceName || "Unknown";
             if (!customerServiceCount[key]) customerServiceCount[key] = {};

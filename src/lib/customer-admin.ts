@@ -183,7 +183,8 @@ export async function anonymiseCustomer(key: string, now: SalonClock = salonNow(
     // Read before the bookings lose their details: an earned blacklist is
     // counted from them and would otherwise lapse with the anonymising.
     const status = await getBlacklistStatus(pair.email, pair.phone);
-    const emailSharedWithOthers = summaries.some((c) => c.key !== key && parseCustomerKey(c.key)!.email === pair.email);
+    const emailSharedWithOthers =
+        !pair.email || summaries.some((c) => c.key !== key && parseCustomerKey(c.key)!.email === pair.email);
 
     let anonymisedBookings = 0;
     await db.transaction(async (tx) => {

@@ -114,10 +114,12 @@ export default function AddBookingModal({
         setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
     // A customer is the e-mail + phone pair (see customer-identity.ts), so
-    // once both are typed we can say which record this booking will land on.
+    // once the phone and any e-mail are typed we can say which record this
+    // booking will land on. The e-mail is optional for manual bookings.
+    const hasEmail = !!email.trim();
     const enteredKey = useMemo(() => {
-        const complete = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && digitsOf(phone).length >= 8;
-        return complete ? customerKey(email, phone) : null;
+        const emailDone = !email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+        return emailDone && digitsOf(phone).length >= 8 ? customerKey(email, phone) : null;
     }, [email, phone]);
 
     const match = useMemo(() => {
@@ -125,7 +127,8 @@ export default function AddBookingModal({
         const existing = customers.find((c) => c.key === enteredKey);
         if (existing) return { kind: "existing" as const, customer: existing };
         const entered = parseCustomerKey(enteredKey)!;
-        const sameEmail = customers.find((c) => parseCustomerKey(c.key)?.email === entered.email);
+        // An empty e-mail is not something two customers share.
+        const sameEmail = entered.email ? customers.find((c) => parseCustomerKey(c.key)?.email === entered.email) : undefined;
         const samePhone = customers.find((c) => parseCustomerKey(c.key)?.phone === entered.phone);
         return { kind: "new" as const, sameEmail, samePhone };
     }, [enteredKey, customers]);
@@ -159,7 +162,7 @@ export default function AddBookingModal({
     const submit = async () => {
         setError(null);
         if (selectedIds.length === 0) return setError("Izberite vsaj eno storitev.");
-        if (!name.trim() || !email.trim() || !phone.trim()) return setError("Izpolnite ime, telefon in e-pošto.");
+        if (!name.trim() || !phone.trim()) return setError("Izpolnite ime in telefon.");
         if (!date) return setError("Izberite datum.");
         if (!time) return setError("Izberite uro.");
 
@@ -176,7 +179,7 @@ export default function AddBookingModal({
                     date,
                     time,
                     notes: notes.trim() || undefined,
-                    sendConfirmation,
+                    sendConfirmation: sendConfirmation && hasEmail,
                 }),
             });
             const data = await res.json();
@@ -293,7 +296,7 @@ export default function AddBookingModal({
                                 <input value={phone} onChange={(e) => setPhone(e.target.value)} onFocus={() => setActiveField("phone")} onBlur={() => setActiveField(null)} className={`mt-1.5 ${inputClass}`} placeholder="+386 40 123 456" inputMode="tel" autoComplete="off" />
                             </div>
                             <div>
-                                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">E-pošta</label>
+                                <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">E-pošta <span className="normal-case text-gray-300">(neobvezno)</span></label>
                                 <input value={email} onChange={(e) => setEmail(e.target.value)} onFocus={() => setActiveField("email")} onBlur={() => setActiveField(null)} className={`mt-1.5 ${inputClass}`} placeholder="ime@email.com" inputMode="email" autoComplete="off" />
                             </div>
                         </div>
@@ -312,7 +315,7 @@ export default function AddBookingModal({
                                     >
                                         <div className="text-sm font-semibold text-gray-800">{c.name}</div>
                                         <div className="text-xs text-gray-400 truncate">
-                                            {c.phone ?? "brez telefona"} · {c.email} · {visitsLabel(c.visits)}
+                                            {[c.phone ?? "brez telefona", c.email || "brez e-pošte", visitsLabel(c.visits)].join(" · ")}
                                         </div>
                                     </button>
                                 ))}
@@ -343,7 +346,7 @@ export default function AddBookingModal({
                                     <span className="font-bold">Nova stranka.</span>{" "}
                                     {match.sameEmail
                                         ? <>Ta e-pošta že pripada stranki {match.sameEmail.name} z drugo številko ({match.sameEmail.phone ?? "brez telefona"}).</>
-                                        : <>Ta številka že pripada stranki {match.samePhone!.name} z drugim e-naslovom ({match.samePhone!.email}).</>}{" "}
+                                        : <>Ta številka že pripada stranki {match.samePhone!.name} {match.samePhone!.email ? <>z drugim e-naslovom ({match.samePhone!.email})</> : <>brez e-naslova</>}.</>}{" "}
                                     {(match.sameEmail ?? match.samePhone)!.blacklist.blacklisted && (
                                         <><span className="font-bold text-red-700">Ta stranka je na črni listi.</span>{" "}</>
                                     )}
@@ -398,10 +401,14 @@ export default function AddBookingModal({
                         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} rows={2} className={`mt-1.5 ${inputClass} resize-none`} placeholder="Posebne zahteve, alergije ..." />
                     </div>
 
-                    <label className="flex items-center gap-2.5 text-sm text-gray-600 cursor-pointer select-none">
-                        <input type="checkbox" checked={sendConfirmation} onChange={(e) => setSendConfirmation(e.target.checked)} className="w-4 h-4 rounded accent-yellow-500" />
-                        Pošlji potrditveni e-mail stranki
-                    </label>
+                    {hasEmail ? (
+                        <label className="flex items-center gap-2.5 text-sm text-gray-600 cursor-pointer select-none">
+                            <input type="checkbox" checked={sendConfirmation} onChange={(e) => setSendConfirmation(e.target.checked)} className="w-4 h-4 rounded accent-yellow-500" />
+                            Pošlji potrditveni e-mail stranki
+                        </label>
+                    ) : (
+                        <p className="text-xs text-gray-400">Brez e-pošte stranka ne prejme potrditvenega e-maila.</p>
+                    )}
 
                     {error && <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">{error}</div>}
                 </div>

@@ -14,10 +14,14 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { customerEmail, customerPhone, note } = body;
+        // Customers Karin entered by hand may have no e-mail; the phone then
+        // identifies them on its own.
+        const email = typeof customerEmail === "string" ? normalizeEmail(customerEmail) : "";
+        const phone = typeof customerPhone === "string" ? normalizePhone(customerPhone) : "";
 
-        if (typeof customerEmail !== "string" || typeof note !== "string" || !customerEmail.trim() || !note.trim()) {
+        if (typeof note !== "string" || !note.trim() || (!email && !phone)) {
             return NextResponse.json(
-                { error: "customerEmail and note are required" },
+                { error: "note and the customer's e-mail or phone are required" },
                 { status: 400 }
             );
         }
@@ -25,8 +29,8 @@ export async function POST(request: Request) {
         const [inserted] = await db
             .insert(customerNotes)
             .values({
-                customerEmail: normalizeEmail(customerEmail),
-                customerPhone: typeof customerPhone === "string" ? normalizePhone(customerPhone) || null : null,
+                customerEmail: email,
+                customerPhone: phone || null,
                 note: note.trim(),
                 author: "admin",
             })
