@@ -1,4 +1,5 @@
 import type { bookings } from "@/db/schema";
+import { salonTimeToEpoch } from "@/lib/schedule";
 
 type Booking = typeof bookings.$inferSelect;
 
@@ -22,10 +23,13 @@ export const CANCELLATION_NOTICE_HOURS = 36;
 export const CANCEL_TOKEN_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** Hours from now until the appointment starts; negative once it has passed. */
+/**
+ * Hours from now until the appointment starts; negative once it has passed.
+ * The stored date and time are Ljubljana wall clock, and are read as such
+ * whatever zone the server keeps (Workers run in UTC).
+ */
 export function hoursUntilBooking(booking: Pick<Booking, "date" | "time">): number {
-    const appointmentDateTime = new Date(`${booking.date}T${booking.time}:00`);
-    return (appointmentDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
+    return (salonTimeToEpoch(booking.date, booking.time) - Date.now()) / (1000 * 60 * 60);
 }
 
 /** True when the appointment is too close to be cancelled through the link. */

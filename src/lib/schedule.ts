@@ -70,6 +70,63 @@ export function toDateStr(date: Date): string {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+/** The zone every stored booking date and time is written in. */
+export const SALON_TIME_ZONE = "Europe/Ljubljana";
+
+/**
+ * Wall-clock date ("YYYY-MM-DD") and time ("HH:mm") at the salon.
+ *
+ * Bookings are stored as the salon's wall clock, but server code runs on
+ * Workers in UTC, where the local getters toDateStr relies on are one or two
+ * hours behind Ljubljana. Anything server-side that asks "has this appointment
+ * happened yet?" should compare against this instead.
+ */
+export function salonNow(at: Date = new Date()): { date: string; time: string } {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: SALON_TIME_ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+    }).formatToParts(at);
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "00";
+    return {
+        date: `${part("year")}-${part("month")}-${part("day")}`,
+        time: `${part("hour")}:${part("minute")}`,
+    };
+}
+
+/** "YYYY-MM-DD" + "HH:mm" read as if it were UTC, in epoch milliseconds. */
+function wallClockAsUtc(date: string, time: string): number {
+    const [y, m, d] = date.split("-").map(Number);
+    const [hh, mm] = time.split(":").map(Number);
+    return Date.UTC(y, m - 1, d, hh, mm);
+}
+
+/** How far the salon's clock is ahead of UTC at `epochMs`, in milliseconds. */
+function salonOffsetMs(epochMs: number): number {
+    const minute = Math.floor(epochMs / 60_000) * 60_000;
+    const wall = salonNow(new Date(minute));
+    return wallClockAsUtc(wall.date, wall.time) - minute;
+}
+
+/**
+ * The instant at which a stored booking date and time happen at the salon, in
+ * epoch milliseconds.
+ *
+ * `new Date("YYYY-MM-DDTHH:mm:00")` would read the string in the host's zone,
+ * which on Workers is UTC, putting every appointment one or two hours later
+ * than it really is. The offset is looked up twice so a time near a DST change
+ * picks the offset in force at the appointment, not at its UTC reading.
+ */
+export function salonTimeToEpoch(date: string, time: string): number {
+    const asUtc = wallClockAsUtc(date, time);
+    const firstGuess = asUtc - salonOffsetMs(asUtc);
+    return asUtc - salonOffsetMs(firstGuess);
+}
+
 /* ── Slovenian public holidays ────────────────────────── */
 
 /**

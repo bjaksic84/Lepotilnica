@@ -5,6 +5,7 @@ import {
     hoursUntilBooking,
     isInsideNoticeWindow,
 } from "@/lib/cancellation";
+import { salonNow } from "@/lib/schedule";
 
 /**
  * The 36-hour cancellation cutoff.
@@ -20,8 +21,8 @@ import {
  * Time is frozen rather than slept through, so the boundary is tested exactly.
  */
 describe("cancellation notice window", () => {
-    /** A Monday, midday. */
-    const NOW = new Date(2026, 5, 1, 12, 0, 0);
+    /** A Monday, midday in Ljubljana. */
+    const NOW = new Date("2026-06-01T10:00:00Z");
 
     beforeEach(() => {
         vi.useFakeTimers();
@@ -32,16 +33,11 @@ describe("cancellation notice window", () => {
         vi.useRealTimers();
     });
 
-    const pad = (n: number) => String(n).padStart(2, "0");
-
-    /** A booking `hours` from the frozen now, in the shape the helpers take. */
-    const bookingIn = (hours: number) => {
-        const d = new Date(NOW.getTime() + hours * 3600 * 1000);
-        return {
-            date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-            time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
-        };
-    };
+    /**
+     * A booking `hours` from the frozen now, written the way bookings are
+     * stored: as the salon's wall clock, not the host's.
+     */
+    const bookingIn = (hours: number) => salonNow(new Date(NOW.getTime() + hours * 3600 * 1000));
 
     it("is 36 hours — change the ToS, e-mails, FAQ and cancel page with it", () => {
         expect(CANCELLATION_NOTICE_HOURS).toBe(36);
@@ -77,6 +73,56 @@ describe("cancellation notice window", () => {
         // It cannot be self-cancelled, which is what matters: the page offers
         // to notify the salon rather than a cancel button.
         expect(isInsideNoticeWindow(bookingIn(-1))).toBe(true);
+    });
+
+    /**
+     * Production runs on Workers, whose clock is UTC (checked in workerd:
+     * `new Date("2026-07-01T10:00:00")` comes out as 10:00Z), while bookings
+     * store the salon's wall clock. The cases above build both "now" and the
+     * booking from the host's local clock, so they pass in any timezone and
+     * could not see the difference. These pin real instants and repeat under
+     * several host timezones: the window must be 36 real hours before the
+     * appointment in Ljubljana, whatever clock the server keeps.
+     */
+    describe("whatever timezone the server runs in", () => {
+        const originalTz = process.env.TZ;
+
+        afterEach(() => {
+            // Assigning undefined would set the string "undefined".
+            if (originalTz === undefined) delete process.env.TZ;
+            else process.env.TZ = originalTz;
+        });
+
+        for (const tz of ["UTC", "Europe/Ljubljana", "America/New_York"]) {
+            describe(`host clock in ${tz}`, () => {
+                beforeEach(() => {
+                    process.env.TZ = tz;
+                });
+
+                it("measures summer appointments in Ljubljana time", () => {
+                    // 10:00 in Ljubljana (CEST, UTC+2).
+                    vi.setSystemTime(new Date("2026-07-01T08:00:00Z"));
+                    expect(hoursUntilBooking({ date: "2026-07-02", time: "22:00" })).toBeCloseTo(36, 5);
+                    expect(isInsideNoticeWindow({ date: "2026-07-02", time: "22:00" })).toBe(false);
+                    expect(isInsideNoticeWindow({ date: "2026-07-02", time: "21:00" })).toBe(true);
+                });
+
+                it("measures winter appointments in Ljubljana time", () => {
+                    // 10:00 in Ljubljana (CET, UTC+1).
+                    vi.setSystemTime(new Date("2026-12-01T09:00:00Z"));
+                    expect(hoursUntilBooking({ date: "2026-12-02", time: "22:00" })).toBeCloseTo(36, 5);
+                    expect(isInsideNoticeWindow({ date: "2026-12-02", time: "21:59" })).toBe(true);
+                });
+
+                it("counts real hours across the clocks going back", () => {
+                    // Sat 24 Oct 10:00 CEST to Sun 25 Oct 21:00 CET reads as 35
+                    // hours on the wall clock but is 36 real ones.
+                    vi.setSystemTime(new Date("2026-10-24T08:00:00Z"));
+                    expect(hoursUntilBooking({ date: "2026-10-25", time: "21:00" })).toBeCloseTo(36, 5);
+                    expect(isInsideNoticeWindow({ date: "2026-10-25", time: "21:00" })).toBe(false);
+                });
+            });
+        }
     });
 
     describe("token shape", () => {
