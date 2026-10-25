@@ -55,8 +55,11 @@ Ordered — each step depends on the one before it.
 
 ## 3. Decisions to make around launch
 
-- [ ] **Database backup.** 25+ real bookings in Turso and nothing in the repo
-      backs them up. Losing that table means phoning customers.
+- [ ] **Database backup.** Every customer record was a test, and all of them
+      were wiped on 25 October 2026 for a clean start (a one-off copy was kept
+      locally, outside the repo). Nothing backs up what comes next, so set
+      something up before real bookings accumulate — losing that table means
+      phoning customers.
 - [ ] **Error visibility.** `console.error` reaches `wrangler tail` and nowhere
       else, and nobody runs it. Confirmation e-mails silently failing has
       already happened once (`9e903a9`). Cloudflare Web Analytics covers some
@@ -66,8 +69,6 @@ Ordered — each step depends on the one before it.
       confirm Resend and Cloudflare Email Routing both align, then move to
       `p=quarantine` with `sp=quarantine`. Don't enforce before reading the
       reports or you risk quarantining legitimate mail.
-- [ ] **The early customer's booking.** Still live in the database, and they
-      hold a working cancellation link. Honour it or cancel it explicitly.
 - [ ] **Check the WhatsApp/SMS link** on the Business Profile. The profile
       shows 43 "chat clicks" over six months, but Google shut native Business
       Profile messaging down in July 2024 — so those are most likely taps on a
