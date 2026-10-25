@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, primaryKey } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 export const categories = sqliteTable("categories", {
@@ -59,6 +59,12 @@ export type NewCategory = typeof categories.$inferInsert;
 export type Service = typeof services.$inferSelect;
 export type NewService = typeof services.$inferInsert;
 
+/**
+ * Superseded: the old per-e-mail no-show counter. Nothing reads or writes it
+ * any more — no-shows are now marked per booking (`booking_absences`) and the
+ * blacklist is kept per customer (`customer_blacklist`). Left in place rather
+ * than dropped; its only production row was a test.
+ */
 export const noShows = sqliteTable("no_shows", {
     id: integer("id").primaryKey({ autoIncrement: true }),
     customerEmail: text("customer_email").notNull().unique(),
@@ -78,6 +84,12 @@ export type NewNoShow = typeof noShows.$inferInsert;
 export const customerNotes = sqliteTable("customer_notes", {
     id: integer("id").primaryKey({ autoIncrement: true }),
     customerEmail: text("customer_email").notNull(),
+    /**
+     * Normalised phone (src/lib/customer-identity.ts). A customer is an e-mail
+     * AND a phone number, so a note belongs to that pair. NULL on notes written
+     * before the pair rule; those show on every customer with the e-mail.
+     */
+    customerPhone: text("customer_phone"),
     note: text("note").notNull(),
     author: text("author", { enum: ["customer", "admin"] }).default("admin").notNull(),
     bookingId: integer("booking_id").references(() => bookings.id, { onDelete: "set null" }),
@@ -88,6 +100,61 @@ export const customerNotes = sqliteTable("customer_notes", {
 
 export type CustomerNote = typeof customerNotes.$inferSelect;
 export type NewCustomerNote = typeof customerNotes.$inferInsert;
+
+/**
+ * What Karin knows about a booking that did not happen: whether the customer
+ * simply didn't turn up, and her own note on why they were absent. One row per
+ * booking, and only for bookings that have something recorded.
+ *
+ * Kept out of `bookings` on purpose. The public booking and cancellation flows
+ * read and return every bookings column, so a new column there would take
+ * online booking down if code ever shipped ahead of its migration; a separate
+ * table confines that risk to the admin Logs page.
+ *
+ * ON DELETE CASCADE does the cleanup. Foreign keys are enforced on Turso, and
+ * a booking disappears not only when Karin deletes it but also when its
+ * service or category is deleted (both cascade into bookings).
+ */
+export const bookingAbsences = sqliteTable("booking_absences", {
+    bookingId: integer("booking_id")
+        .primaryKey()
+        .references(() => bookings.id, { onDelete: "cascade" }),
+    noShow: integer("no_show", { mode: "boolean" }).default(false).notNull(),
+    reason: text("reason"),
+    updatedAt: text("updated_at")
+        .default(sql`CURRENT_TIMESTAMP`)
+        .notNull(),
+});
+
+export type BookingAbsence = typeof bookingAbsences.$inferSelect;
+export type NewBookingAbsence = typeof bookingAbsences.$inferInsert;
+
+/**
+ * Karin's own blacklist decisions, per customer (the normalised e-mail +
+ * phone pair; see src/lib/customer-identity.ts and src/lib/blacklist.ts).
+ *
+ * A customer is blacklisted when `blocked` is set or when their no-shows,
+ * less `no_shows_forgiven`, reach the limit. Lifting a blacklist clears
+ * `blocked` and forgives every no-show recorded so far, so it does not trip
+ * again until new ones accumulate. The phone is "" rather than NULL when a
+ * customer has none, so the primary key still holds.
+ */
+export const customerBlacklist = sqliteTable(
+    "customer_blacklist",
+    {
+        customerEmail: text("customer_email").notNull(),
+        customerPhone: text("customer_phone").notNull(),
+        blocked: integer("blocked", { mode: "boolean" }).default(false).notNull(),
+        reason: text("reason"),
+        noShowsForgiven: integer("no_shows_forgiven").default(0).notNull(),
+        updatedAt: text("updated_at")
+            .default(sql`CURRENT_TIMESTAMP`)
+            .notNull(),
+    },
+    (table) => [primaryKey({ columns: [table.customerEmail, table.customerPhone] })]
+);
+
+export type CustomerBlacklistEntry = typeof customerBlacklist.$inferSelect;
 
 /**
  * Failed admin login attempts, used to lock out brute force.

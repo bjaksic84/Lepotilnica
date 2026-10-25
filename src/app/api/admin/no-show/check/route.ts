@@ -1,34 +1,27 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
 import { requireAdmin } from "@/lib/auth-guard";
-import { noShows } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { getBlacklistStatus } from "@/lib/blacklist";
 
-// GET /api/admin/no-show/check?email=... — Check if customer is blacklisted
+// GET /api/admin/no-show/check?email=...&phone=... — Is this customer
+// (e-mail + phone) blacklisted?
 export async function GET(request: Request) {
     const unauth = await requireAdmin();
     if (unauth) return unauth;
 
     try {
         const { searchParams } = new URL(request.url);
-        const email = searchParams.get("email")?.toLowerCase();
+        const email = searchParams.get("email");
+        const phone = searchParams.get("phone");
 
         if (!email) {
             return NextResponse.json({ error: "Email parameter is required" }, { status: 400 });
         }
 
-        const record = await db
-            .select()
-            .from(noShows)
-            .where(eq(noShows.customerEmail, email))
-            .get();
-
-        const noShowCount = record?.count || 0;
-        const isBlacklisted = noShowCount >= 2;
-
+        const status = await getBlacklistStatus(email, phone);
         return NextResponse.json({
-            isBlacklisted,
-            noShowCount,
+            isBlacklisted: status.blacklisted,
+            noShowCount: status.activeNoShows,
+            manual: status.manual,
         });
     } catch (error) {
         console.error("Blacklist check error:", error);

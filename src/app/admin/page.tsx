@@ -11,6 +11,7 @@ import BlockTimeModal from "@/components/admin/BlockTimeModal";
 import MoveBookingModal from "@/components/admin/MoveBookingModal";
 import { getScheduleForDateStr, timeToMinutes, minutesToTime } from "@/lib/schedule";
 import ToastContainer, { useToast } from "@/components/Toast";
+import { customerKey } from "@/lib/customer-identity";
 
 type Booking = WeeklyBooking & {
     customerEmail: string;
@@ -40,8 +41,9 @@ type AnalyticsData = {
     popularTimeSlots: { time: string; count: number }[];
     busiestDay: { day: string; count: number } | null;
     dailyRevenue: { date: string; revenue: number }[];
-    todaysBookings: { time: string; customerName: string; customerEmail: string; serviceName: string; status: string; bookingId: number }[];
+    todaysBookings: { time: string; customerName: string; customerEmail: string; customerPhone: string | null; serviceName: string; status: string; bookingId: number }[];
     loyalCustomers: {
+        key: string;
         name: string;
         email: string;
         phone: string | null;
@@ -61,7 +63,8 @@ function AdminDashboard() {
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-    const [noShowMap, setNoShowMap] = useState<Record<string, number>>({});
+    // Blacklist state per customer (e-mail + phone), for the badges.
+    const [blacklistMap, setBlacklistMap] = useState<Record<string, { activeNoShows: number; blacklisted: boolean }>>({});
     const [blockingRange, setBlockingRange] = useState(false);
 
     // Manual booking / block flows (from the timetable empty-slot action sheet
@@ -130,10 +133,10 @@ function AdminDashboard() {
         try {
             const res = await fetch("/api/admin/no-show");
             if (res.ok) {
-                const records = await res.json();
-                const map: Record<string, number> = {};
-                for (const r of records) map[r.customerEmail] = r.count;
-                setNoShowMap(map);
+                const records: { key: string; activeNoShows: number; blacklisted: boolean }[] = await res.json();
+                const map: Record<string, { activeNoShows: number; blacklisted: boolean }> = {};
+                for (const r of records) map[r.key] = r;
+                setBlacklistMap(map);
             }
         } catch (error) {
             console.error("Failed to fetch no-show data", error);
@@ -169,8 +172,11 @@ function AdminDashboard() {
         }
     };
 
-    const isBlacklisted = (email: string) => (noShowMap[email?.toLowerCase()] || 0) >= 2;
-    const getNoShowCount = (email: string) => noShowMap[email?.toLowerCase()] || 0;
+    const statusOf = (email: string, phone: string | null) => blacklistMap[customerKey(email ?? "", phone)];
+    const isBlacklisted = (email: string, phone: string | null) => !!statusOf(email, phone)?.blacklisted;
+    // The amber warning: one no-show on record, not (yet) blacklisted.
+    const getNoShowCount = (email: string, phone: string | null) =>
+        isBlacklisted(email, phone) ? 0 : statusOf(email, phone)?.activeNoShows ?? 0;
 
     useEffect(() => {
         fetchData();
@@ -326,7 +332,7 @@ function AdminDashboard() {
                         phone the card is now taller than the viewport, and
                         `overflow-hidden` alone would bury the actions. */}
                     <div
-                        className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200 ${isBlacklisted(selectedBooking.customerEmail) ? 'ring-2 ring-red-500' : ''}`}
+                        className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200 ${isBlacklisted(selectedBooking.customerEmail, selectedBooking.customerPhone) ? 'ring-2 ring-red-500' : ''}`}
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Modal Header */}
@@ -360,18 +366,18 @@ function AdminDashboard() {
                             </div>
 
                             {/* Customer Info */}
-                            <div className={`rounded-xl p-4 space-y-3 ${isBlacklisted(selectedBooking.customerEmail) ? 'bg-red-50 border border-red-200' : 'bg-gray-50'}`}>
+                            <div className={`rounded-xl p-4 space-y-3 ${isBlacklisted(selectedBooking.customerEmail, selectedBooking.customerPhone) ? 'bg-red-50 border border-red-200' : 'bg-gray-50'}`}>
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isBlacklisted(selectedBooking.customerEmail) ? 'bg-red-200' : 'bg-pink-100'}`}>
-                                        <span className={`font-bold text-sm ${isBlacklisted(selectedBooking.customerEmail) ? 'text-red-700' : 'text-pink-700'}`}>{selectedBooking.customerName.charAt(0).toUpperCase()}</span>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isBlacklisted(selectedBooking.customerEmail, selectedBooking.customerPhone) ? 'bg-red-200' : 'bg-pink-100'}`}>
+                                        <span className={`font-bold text-sm ${isBlacklisted(selectedBooking.customerEmail, selectedBooking.customerPhone) ? 'text-red-700' : 'text-pink-700'}`}>{selectedBooking.customerName.charAt(0).toUpperCase()}</span>
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <span className="font-bold text-gray-900">{selectedBooking.customerName}</span>
-                                            {isBlacklisted(selectedBooking.customerEmail) && (
+                                            {isBlacklisted(selectedBooking.customerEmail, selectedBooking.customerPhone) && (
                                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-red-100 text-red-700 tracking-wide">Blacklisted</span>
                                             )}
-                                            {getNoShowCount(selectedBooking.customerEmail) === 1 && (
+                                            {getNoShowCount(selectedBooking.customerEmail, selectedBooking.customerPhone) === 1 && (
                                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-100 text-amber-700 tracking-wide">1 No-Show</span>
                                             )}
                                         </div>
@@ -619,15 +625,15 @@ function AdminDashboard() {
                         {/* Mobile Card View */}
                         <div className="grid grid-cols-1 gap-3 md:hidden">
                             {bookings.sort((a, b) => new Date(b.date + 'T' + b.time).getTime() - new Date(a.date + 'T' + a.time).getTime()).map((booking) => (
-                                <div key={booking.id} className={`bg-white p-5 rounded-xl shadow-sm flex flex-col gap-3 ${isBlacklisted(booking.customerEmail) ? 'border-2 border-red-400 ring-1 ring-red-200' : 'border border-gray-100'}`}>
+                                <div key={booking.id} className={`bg-white p-5 rounded-xl shadow-sm flex flex-col gap-3 ${isBlacklisted(booking.customerEmail, booking.customerPhone) ? 'border-2 border-red-400 ring-1 ring-red-200' : 'border border-gray-100'}`}>
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <div className="font-bold text-gray-900 flex items-center gap-2">
                                                 {booking.customerName}
-                                                {isBlacklisted(booking.customerEmail) && (
+                                                {isBlacklisted(booking.customerEmail, booking.customerPhone) && (
                                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700">Blacklisted</span>
                                                 )}
-                                                {getNoShowCount(booking.customerEmail) === 1 && (
+                                                {getNoShowCount(booking.customerEmail, booking.customerPhone) === 1 && (
                                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700">1 No-Show</span>
                                                 )}
                                             </div>
@@ -677,7 +683,7 @@ function AdminDashboard() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {bookings.sort((a, b) => new Date(b.date + 'T' + b.time).getTime() - new Date(a.date + 'T' + a.time).getTime()).map((booking) => (
-                                        <tr key={booking.id} className={`transition-colors ${isBlacklisted(booking.customerEmail) ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-gray-50/50'}`}>
+                                        <tr key={booking.id} className={`transition-colors ${isBlacklisted(booking.customerEmail, booking.customerPhone) ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-gray-50/50'}`}>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="font-bold text-gray-900">{format(new Date(booking.date), "MMM d")}</div>
                                                 <div className="text-gray-400 text-xs">{booking.time}</div>
@@ -685,10 +691,10 @@ function AdminDashboard() {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-medium text-gray-900">{booking.customerName}</span>
-                                                    {isBlacklisted(booking.customerEmail) && (
+                                                    {isBlacklisted(booking.customerEmail, booking.customerPhone) && (
                                                         <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700 tracking-wide">Blacklisted</span>
                                                     )}
-                                                    {getNoShowCount(booking.customerEmail) === 1 && (
+                                                    {getNoShowCount(booking.customerEmail, booking.customerPhone) === 1 && (
                                                         <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700 tracking-wide">1 No-Show</span>
                                                     )}
                                                 </div>
@@ -895,15 +901,15 @@ function AdminDashboard() {
                                         {analytics.todaysBookings.length > 0 ? (
                                             <div className="space-y-2">
                                                 {analytics.todaysBookings.map((b, i) => (
-                                                    <div key={i} className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${isBlacklisted(b.customerEmail) ? 'bg-red-50 border border-red-200 hover:bg-red-100' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                                                    <div key={i} className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${isBlacklisted(b.customerEmail, b.customerPhone) ? 'bg-red-50 border border-red-200 hover:bg-red-100' : 'bg-gray-50 hover:bg-gray-100'}`}>
                                                         <span className="text-sm font-mono font-bold text-gray-900 w-12">{b.time}</span>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2">
                                                                 <span className="text-sm font-medium text-gray-900 truncate">{b.customerName}</span>
-                                                                {isBlacklisted(b.customerEmail) && (
+                                                                {isBlacklisted(b.customerEmail, b.customerPhone) && (
                                                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700 flex-shrink-0">Blacklisted</span>
                                                                 )}
-                                                                {getNoShowCount(b.customerEmail) === 1 && (
+                                                                {getNoShowCount(b.customerEmail, b.customerPhone) === 1 && (
                                                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700 flex-shrink-0">1 No-Show</span>
                                                                 )}
                                                             </div>
@@ -980,7 +986,7 @@ function AdminDashboard() {
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-50">
                                                     {analytics.loyalCustomers.map((customer, i) => (
-                                                        <tr key={customer.email} className="hover:bg-gray-50/50 transition-colors">
+                                                        <tr key={customer.key} className="hover:bg-gray-50/50 transition-colors">
                                                             <td className="py-3 pr-4">
                                                                 <div className="flex items-center gap-3">
                                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${i < 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>

@@ -4,11 +4,28 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { ADMIN_CLOSE, ADMIN_OPEN, generateAdminSlots, getScheduleForDateStr } from "@/lib/schedule";
+import { customerKey, normalizePhone, parseCustomerKey } from "@/lib/customer-identity";
+import type { CustomerSummary } from "@/lib/customer-insight";
 
 type Service = { id: number; name: string; duration: number; price: number };
 type Category = { id: number; name: string; services: Service[] };
 
 const todayStr = () => format(new Date(), "yyyy-MM-dd");
+
+/** Case- and accent-insensitive, so "spela" finds "Špela". */
+const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+const digitsOf = (s: string) => s.replace(/\D/g, "");
+
+/** Slovenian count: singular, dual, plural for 3–4, plural genitive for 5+. */
+const countLabel = (n: number, [one, two, few, many]: [string, string, string, string]) => {
+    const m = n % 100;
+    if (m === 1) return `${n} ${one}`;
+    if (m === 2) return `${n} ${two}`;
+    if (m === 3 || m === 4) return `${n} ${few}`;
+    return `${n} ${many}`;
+};
+const visitsLabel = (n: number) => countLabel(n, ["obisk", "obiska", "obiski", "obiskov"]);
+const noShowsLabel = (n: number) => countLabel(n, ["neprihod", "neprihoda", "neprihodi", "neprihodov"]);
 
 export default function AddBookingModal({
     initialDate,
@@ -38,12 +55,21 @@ export default function AddBookingModal({
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Known customers, so a booking for a returning client can be filled in
+    // exactly and lands on their existing record rather than starting a new one.
+    const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+    const [activeField, setActiveField] = useState<"name" | "phone" | "email" | null>(null);
+
     useEffect(() => {
         fetch("/api/services")
             .then((r) => r.json())
             .then((data: Category[]) => setCategories(data))
             .catch(() => {})
             .finally(() => setLoadingServices(false));
+        fetch("/api/admin/customers")
+            .then((r) => (r.ok ? r.json() : []))
+            .then((data: CustomerSummary[]) => setCustomers(Array.isArray(data) ? data : []))
+            .catch(() => {});
     }, []);
 
     // Esc to close + lock background scroll while open.
@@ -83,6 +109,49 @@ export default function AddBookingModal({
 
     const toggle = (id: number) =>
         setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+    // A customer is the e-mail + phone pair (see customer-identity.ts), so
+    // once both are typed we can say which record this booking will land on.
+    const enteredKey = useMemo(() => {
+        const complete = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && digitsOf(phone).length >= 8;
+        return complete ? customerKey(email, phone) : null;
+    }, [email, phone]);
+
+    const match = useMemo(() => {
+        if (!enteredKey) return null;
+        const existing = customers.find((c) => c.key === enteredKey);
+        if (existing) return { kind: "existing" as const, customer: existing };
+        const entered = parseCustomerKey(enteredKey)!;
+        const sameEmail = customers.find((c) => parseCustomerKey(c.key)?.email === entered.email);
+        const samePhone = customers.find((c) => parseCustomerKey(c.key)?.phone === entered.phone);
+        return { kind: "new" as const, sameEmail, samePhone };
+    }, [enteredKey, customers]);
+
+    const suggestions = useMemo(() => {
+        if (!activeField) return [];
+        const query = activeField === "name" ? name : activeField === "phone" ? phone : email;
+        const q = fold(query);
+        if (q.length < 2) return [];
+        // "040 12" should find "+386 40 123 456": compare without the trunk 0.
+        const qDigits = digitsOf(query).replace(/^0+/, "");
+        return customers
+            .filter((c) => c.key !== enteredKey)
+            .filter((c) => {
+                if (activeField === "email") return c.email.toLowerCase().includes(q);
+                if (activeField === "phone") {
+                    return qDigits.length >= 3 && !!c.phone && digitsOf(normalizePhone(c.phone)).includes(qDigits);
+                }
+                return [c.name, ...c.otherNames].some((n) => fold(n).includes(q));
+            })
+            .slice(0, 5);
+    }, [activeField, name, phone, email, customers, enteredKey]);
+
+    const pickCustomer = (c: CustomerSummary) => {
+        setName(c.name);
+        setEmail(c.email);
+        setPhone(c.phone ?? "");
+        setActiveField(null);
+    };
 
     const submit = async () => {
         setError(null);
@@ -213,18 +282,84 @@ export default function AddBookingModal({
                     <div className="grid grid-cols-1 gap-3">
                         <div>
                             <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Ime in priimek</label>
-                            <input value={name} onChange={(e) => setName(e.target.value)} className={`mt-1.5 ${inputClass}`} placeholder="Ime priimek" autoComplete="off" />
+                            <input value={name} onChange={(e) => setName(e.target.value)} onFocus={() => setActiveField("name")} onBlur={() => setActiveField(null)} className={`mt-1.5 ${inputClass}`} placeholder="Ime priimek" autoComplete="off" />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Telefon</label>
-                                <input value={phone} onChange={(e) => setPhone(e.target.value)} className={`mt-1.5 ${inputClass}`} placeholder="+386 40 123 456" inputMode="tel" />
+                                <input value={phone} onChange={(e) => setPhone(e.target.value)} onFocus={() => setActiveField("phone")} onBlur={() => setActiveField(null)} className={`mt-1.5 ${inputClass}`} placeholder="+386 40 123 456" inputMode="tel" autoComplete="off" />
                             </div>
                             <div>
                                 <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">E-pošta</label>
-                                <input value={email} onChange={(e) => setEmail(e.target.value)} className={`mt-1.5 ${inputClass}`} placeholder="ime@email.com" inputMode="email" />
+                                <input value={email} onChange={(e) => setEmail(e.target.value)} onFocus={() => setActiveField("email")} onBlur={() => setActiveField(null)} className={`mt-1.5 ${inputClass}`} placeholder="ime@email.com" inputMode="email" autoComplete="off" />
                             </div>
                         </div>
+
+                        {suggestions.length > 0 && (
+                            <div className="rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                                <div className="px-3 py-1.5 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Obstoječe stranke</div>
+                                {suggestions.map((c) => (
+                                    <button
+                                        key={c.key}
+                                        type="button"
+                                        // Keep focus in the input so its blur doesn't hide the list mid-click.
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => pickCustomer(c)}
+                                        className="w-full text-left px-3 py-2 hover:bg-yellow-50 transition-colors"
+                                    >
+                                        <div className="text-sm font-semibold text-gray-800">{c.name}</div>
+                                        <div className="text-xs text-gray-400 truncate">
+                                            {c.phone ?? "brez telefona"} · {c.email} · {visitsLabel(c.visits)}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {match?.kind === "existing" && match.customer.blacklist.blacklisted && (
+                            <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs">
+                                <span className="font-bold">Stranka je na črni listi</span>
+                                {match.customer.blacklist.reason
+                                    ? ` (${match.customer.blacklist.reason})`
+                                    : !match.customer.blacklist.manual && ` (${noShowsLabel(match.customer.blacklist.activeNoShows)})`}
+                                . Spletno naročanje s temi podatki je onemogočeno; ročni vnos je kljub temu mogoč.
+                            </div>
+                        )}
+                        {match?.kind === "existing" && (
+                            <div className="p-3 bg-green-50 border border-green-200 text-green-800 rounded-xl text-xs">
+                                <span className="font-bold">Obstoječa stranka:</span> {match.customer.name} · {visitsLabel(match.customer.visits)}
+                                {match.customer.upcoming > 0 && ` · ${match.customer.upcoming} prihodnjih`}. Rezervacija bo dodana k tej stranki.
+                                {name.trim() && fold(name) !== fold(match.customer.name) && (
+                                    <> Prikazano ime se bo posodobilo v »{name.trim()}«.</>
+                                )}
+                            </div>
+                        )}
+                        {match?.kind === "new" && (match.sameEmail || match.samePhone) && (
+                            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs space-y-1.5">
+                                <p>
+                                    <span className="font-bold">Nova stranka.</span>{" "}
+                                    {match.sameEmail
+                                        ? <>Ta e-pošta že pripada stranki {match.sameEmail.name} z drugo številko ({match.sameEmail.phone ?? "brez telefona"}).</>
+                                        : <>Ta številka že pripada stranki {match.samePhone!.name} z drugim e-naslovom ({match.samePhone!.email}).</>}{" "}
+                                    {(match.sameEmail ?? match.samePhone)!.blacklist.blacklisted && (
+                                        <><span className="font-bold text-red-700">Ta stranka je na črni listi.</span>{" "}</>
+                                    )}
+                                    Če gre za isto osebo s tipkarsko napako, uporabite obstoječe podatke.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => pickCustomer((match.sameEmail ?? match.samePhone)!)}
+                                    className="font-bold text-amber-900 underline"
+                                >
+                                    Uporabi podatke stranke {(match.sameEmail ?? match.samePhone)!.name}
+                                </button>
+                            </div>
+                        )}
+                        {match?.kind === "new" && !match.sameEmail && !match.samePhone && (
+                            <div className="p-3 bg-gray-50 border border-gray-200 text-gray-600 rounded-xl text-xs">
+                                <span className="font-bold">Nova stranka</span> — ob shranjevanju se ustvari nov zapis stranke.
+                            </div>
+                        )}
                     </div>
 
                     {/* Date + time */}

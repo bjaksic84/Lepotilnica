@@ -1,42 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { format } from "date-fns";
+import { useEffect, useRef, useState } from "react";
+import { format, parseISO } from "date-fns";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ToastContainer, { useToast } from "@/components/Toast";
+import type { CustomerHistory, CustomerSummary, HistoryEntry } from "@/lib/customer-insight";
 
-type BookingNote = {
-    note: string;
-    date: string;
-    serviceName: string | null;
-    bookingId: number;
-};
+// Stored dates are the salon's wall clock; parseISO keeps them local rather
+// than shifting them through UTC the way `new Date("YYYY-MM-DD")` does.
+const fmtDate = (date: string, pattern = "MMM d, yyyy") => format(parseISO(date), pattern);
 
-type AdminNote = {
-    id: number;
-    note: string;
-    createdAt: string;
-};
-
-type Customer = {
-    email: string;
-    name: string;
-    phone: string | null;
-    totalBookings: number;
-    lastVisit: string;
-    noShowCount: number;
-    bookingNotes: BookingNote[];
-    adminNotes: AdminNote[];
-};
+const digitsOf = (s: string) => s.replace(/\D/g, "");
 
 export default function AdminLogsPage() {
-    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+    const [histories, setHistories] = useState<Record<string, CustomerHistory>>({});
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
-    const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
+    const [expandedKey, setExpandedKey] = useState<string | null>(null);
     const [newNote, setNewNote] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [reasonDraft, setReasonDraft] = useState<{ bookingId: number; text: string } | null>(null);
+    const [savingReason, setSavingReason] = useState(false);
+    const [blacklistDraft, setBlacklistDraft] = useState<{ key: string; reason: string } | null>(null);
+    const [blacklistBusy, setBlacklistBusy] = useState(false);
+
+    // The polling interval outlives renders, so it reads the open customer here.
+    const expandedRef = useRef<string | null>(null);
+    useEffect(() => {
+        expandedRef.current = expandedKey;
+    }, [expandedKey]);
 
     const router = useRouter();
     const { toasts, addToast, removeToast } = useToast();
@@ -59,6 +53,18 @@ export default function AdminLogsPage() {
         }
     };
 
+    const fetchHistory = async (key: string) => {
+        try {
+            const res = await fetch(`/api/admin/customers/history?key=${encodeURIComponent(key)}`);
+            if (res.ok) {
+                const data: CustomerHistory = await res.json();
+                setHistories((prev) => ({ ...prev, [key]: data }));
+            }
+        } catch (error) {
+            console.error("Failed to fetch customer history", error);
+        }
+    };
+
     useEffect(() => {
         fetchCustomers();
     }, []);
@@ -68,23 +74,42 @@ export default function AdminLogsPage() {
         const interval = setInterval(() => {
             if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
             fetchCustomers();
+            if (expandedRef.current) fetchHistory(expandedRef.current);
         }, 30000);
         return () => clearInterval(interval);
     }, []);
 
-    const addNote = async (email: string) => {
+    const openCustomer = (key: string | null) => {
+        setExpandedKey(key);
+        setNewNote("");
+        setReasonDraft(null);
+        setBlacklistDraft(null);
+        if (key) fetchHistory(key);
+    };
+
+    // Jump from a "possibly the same person" hint to that customer's record.
+    const openRelated = (key: string) => {
+        setSearch("");
+        openCustomer(key);
+        requestAnimationFrame(() =>
+            document.getElementById(`customer-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+        );
+    };
+
+    const addNote = async (customer: CustomerSummary) => {
         if (!newNote.trim()) return;
         setSubmitting(true);
         try {
             const res = await fetch("/api/admin/customers/notes", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ customerEmail: email, note: newNote }),
+                body: JSON.stringify({ customerEmail: customer.email, customerPhone: customer.phone, note: newNote }),
             });
             if (res.ok) {
                 addToast({ type: "success", title: "Note Added", message: "Your note has been saved." });
                 setNewNote("");
                 fetchCustomers();
+                fetchHistory(customer.key);
             } else {
                 addToast({ type: "error", title: "Error", message: "Failed to add note." });
             }
@@ -102,18 +127,91 @@ export default function AdminLogsPage() {
             if (res.ok) {
                 addToast({ type: "info", title: "Deleted", message: "Note removed." });
                 fetchCustomers();
+                if (expandedKey) fetchHistory(expandedKey);
             }
         } catch {
             addToast({ type: "error", title: "Error", message: "Failed to delete note." });
         }
     };
 
+    const saveReason = async () => {
+        if (!reasonDraft || !expandedKey) return;
+        setSavingReason(true);
+        try {
+            const res = await fetch(`/api/admin/bookings/${reasonDraft.bookingId}/absence`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reason: reasonDraft.text }),
+            });
+            if (res.ok) {
+                addToast({
+                    type: "success",
+                    title: reasonDraft.text.trim() ? "Reason Saved" : "Reason Removed",
+                    message: reasonDraft.text.trim() ? "The reason for absence has been saved." : "The reason for absence has been cleared.",
+                });
+                setReasonDraft(null);
+                fetchHistory(expandedKey);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                addToast({ type: "error", title: "Error", message: typeof data.error === "string" ? data.error : "Failed to save the reason." });
+            }
+        } catch {
+            addToast({ type: "error", title: "Error", message: "Failed to save the reason." });
+        } finally {
+            setSavingReason(false);
+        }
+    };
+
+    const blacklistCustomer = async () => {
+        if (!blacklistDraft) return;
+        setBlacklistBusy(true);
+        try {
+            const res = await fetch("/api/admin/customers/blacklist", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ key: blacklistDraft.key, reason: blacklistDraft.reason }),
+            });
+            if (res.ok) {
+                addToast({ type: "warning", title: "Customer Blacklisted", message: "They can no longer book online with this e-mail and phone." });
+                setBlacklistDraft(null);
+                fetchCustomers();
+            } else {
+                addToast({ type: "error", title: "Error", message: "Failed to blacklist the customer." });
+            }
+        } catch {
+            addToast({ type: "error", title: "Error", message: "Failed to blacklist the customer." });
+        } finally {
+            setBlacklistBusy(false);
+        }
+    };
+
+    const liftBlacklist = async (customer: CustomerSummary) => {
+        if (!confirm(`Lift the blacklist for ${customer.name}? They will be able to book online again, and their no-shows so far are forgiven.`)) return;
+        setBlacklistBusy(true);
+        try {
+            const res = await fetch(`/api/admin/customers/blacklist?key=${encodeURIComponent(customer.key)}`, { method: "DELETE" });
+            if (res.ok) {
+                addToast({ type: "success", title: "Blacklist Lifted", message: `${customer.name} can book online again.` });
+                fetchCustomers();
+            } else {
+                addToast({ type: "error", title: "Error", message: "Failed to lift the blacklist." });
+            }
+        } catch {
+            addToast({ type: "error", title: "Error", message: "Failed to lift the blacklist." });
+        } finally {
+            setBlacklistBusy(false);
+        }
+    };
+
     const filteredCustomers = customers.filter((c) => {
-        const q = search.toLowerCase();
+        const q = search.toLowerCase().trim();
+        if (!q) return true;
+        const qDigits = digitsOf(q);
         return (
             c.email.toLowerCase().includes(q) ||
             c.name.toLowerCase().includes(q) ||
-            (c.phone && c.phone.includes(q))
+            c.otherNames.some((n) => n.toLowerCase().includes(q)) ||
+            (!!c.phone && (c.phone.includes(q) || (qDigits.length >= 3 && digitsOf(c.phone).includes(qDigits))))
         );
     });
 
@@ -125,6 +223,111 @@ export default function AdminLogsPage() {
         );
     }
 
+    const renderCancelledExtras = (entry: HistoryEntry) => (
+        <div className="mt-2.5 space-y-2">
+            {entry.noShow ? (
+                <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700 tracking-wide">No-Show</span>
+            ) : (
+                <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-50 text-red-600 tracking-wide">Cancelled</span>
+            )}
+
+            {reasonDraft?.bookingId === entry.id ? (
+                <div>
+                    <textarea
+                        value={reasonDraft.text}
+                        onChange={(e) => setReasonDraft({ bookingId: entry.id, text: e.target.value })}
+                        placeholder="Why were they absent? (e.g. ill, forgot, called in late...)"
+                        rows={2}
+                        maxLength={1000}
+                        autoFocus
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveReason();
+                        }}
+                    />
+                    <div className="flex items-center justify-between gap-2 mt-1.5">
+                        <p className="text-[10px] text-gray-400">Save it empty to remove the reason.</p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setReasonDraft(null)}
+                                className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={saveReason}
+                                disabled={savingReason}
+                                className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs font-bold hover:bg-yellow-600 disabled:opacity-40 transition-colors"
+                            >
+                                {savingReason ? "Saving..." : "Save Reason"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : entry.absenceReason ? (
+                <div className="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Reason for absence</span>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{entry.absenceReason}</p>
+                    </div>
+                    <button
+                        onClick={() => setReasonDraft({ bookingId: entry.id, text: entry.absenceReason ?? "" })}
+                        className="text-xs font-bold text-yellow-700 hover:underline flex-shrink-0"
+                    >
+                        Edit
+                    </button>
+                </div>
+            ) : (
+                <button
+                    onClick={() => setReasonDraft({ bookingId: entry.id, text: "" })}
+                    className="block text-xs font-bold text-yellow-700 hover:underline"
+                >
+                    + Add reason for absence
+                </button>
+            )}
+        </div>
+    );
+
+    const renderBooking = (entry: HistoryEntry, customer: CustomerSummary) => (
+        <div key={entry.id} className="bg-white border border-gray-100 rounded-xl p-3">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="font-bold text-gray-900 text-sm">{entry.serviceName ?? "Unknown service"}</div>
+                    <div className="text-xs text-gray-500">
+                        {fmtDate(entry.date, "EEE, MMM d, yyyy")} · {entry.time}
+                        {entry.endTime && `–${entry.endTime}`}
+                        {entry.categoryName && <span className="text-gray-400"> · {entry.categoryName}</span>}
+                    </div>
+                    {entry.bookedAs.toLowerCase() !== customer.name.toLowerCase() && (
+                        <div className="text-[11px] text-gray-400 mt-0.5">Booked as {entry.bookedAs}</div>
+                    )}
+                </div>
+                <div className="text-right flex-shrink-0">
+                    {entry.price !== null && <div className="text-sm font-bold text-gray-900">€{entry.price}</div>}
+                    {entry.duration !== null && <div className="text-[10px] text-gray-400 uppercase tracking-wider">{entry.duration} min</div>}
+                </div>
+            </div>
+            {entry.notes && (
+                <p className="mt-2 text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5 whitespace-pre-wrap">{entry.notes}</p>
+            )}
+            {entry.status === "cancelled" && renderCancelledExtras(entry)}
+        </div>
+    );
+
+    const renderSection = (title: string, entries: HistoryEntry[], empty: string, customer: CustomerSummary) => (
+        <div>
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
+                {title}
+                {entries.length > 0 && <span className="ml-2 text-yellow-600 normal-case">({entries.length})</span>}
+            </h4>
+            {entries.length > 0 ? (
+                <div className="space-y-2">{entries.map((e) => renderBooking(e, customer))}</div>
+            ) : (
+                <p className="text-sm text-gray-400">{empty}</p>
+            )}
+        </div>
+    );
+
     return (
         <div className="min-h-screen bg-gray-50 pt-24 pb-20">
             <ToastContainer toasts={toasts} onDismiss={removeToast} />
@@ -133,7 +336,7 @@ export default function AdminLogsPage() {
                 <div className="mb-8">
                     <Link href="/admin" className="text-yellow-600 text-sm font-bold hover:underline mb-4 inline-block">← Back to Dashboard</Link>
                     <h1 className="text-4xl font-playfair font-bold text-gray-900">Customer Logs</h1>
-                    <p className="text-gray-500 mt-1">View customer history and manage notes for custom treatments.</p>
+                    <p className="text-gray-500 mt-1">Every customer&apos;s visits, upcoming and cancelled bookings, and your notes. A customer is one e-mail + phone pair.</p>
                 </div>
 
                 {/* Search */}
@@ -159,15 +362,15 @@ export default function AdminLogsPage() {
                         <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">Total Customers</div>
                     </div>
                     <div className="bg-white rounded-xl border border-gray-100 p-4">
-                        <div className="text-2xl font-bold text-yellow-600">{customers.filter(c => c.adminNotes.length > 0).length}</div>
+                        <div className="text-2xl font-bold text-yellow-600">{customers.filter(c => c.adminNotesCount > 0).length}</div>
                         <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">With Admin Notes</div>
                     </div>
                     <div className="bg-white rounded-xl border border-gray-100 p-4">
-                        <div className="text-2xl font-bold text-blue-600">{customers.filter(c => c.bookingNotes.length > 0).length}</div>
-                        <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">With Booking Notes</div>
+                        <div className="text-2xl font-bold text-blue-600">{customers.filter(c => c.upcoming > 0).length}</div>
+                        <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">With Upcoming</div>
                     </div>
                     <div className="bg-white rounded-xl border border-gray-100 p-4">
-                        <div className="text-2xl font-bold text-red-600">{customers.filter(c => c.noShowCount >= 2).length}</div>
+                        <div className="text-2xl font-bold text-red-600">{customers.filter(c => c.blacklist.blacklisted).length}</div>
                         <div className="text-xs text-gray-400 font-bold uppercase tracking-wider">Blacklisted</div>
                     </div>
                 </div>
@@ -183,26 +386,26 @@ export default function AdminLogsPage() {
                 ) : (
                     <div className="space-y-3">
                         {filteredCustomers.map((customer) => {
-                            const isExpanded = expandedEmail === customer.email.toLowerCase();
-                            const allNotesCount = customer.bookingNotes.length + customer.adminNotes.length;
+                            const isExpanded = expandedKey === customer.key;
+                            const isBlacklisted = customer.blacklist.blacklisted;
+                            const history = histories[customer.key];
+                            const totalBookings = customer.visits + customer.upcoming + customer.cancelled;
+                            const cancelRate = totalBookings > 0 ? Math.round((customer.cancelled / totalBookings) * 100) : 0;
 
                             return (
-                                <div key={customer.email} className={`bg-white rounded-2xl border overflow-hidden transition-all ${
-                                    customer.noShowCount >= 2
+                                <div key={customer.key} id={`customer-${customer.key}`} className={`bg-white rounded-2xl border overflow-hidden transition-all scroll-mt-24 ${
+                                    isBlacklisted
                                         ? "border-red-200 ring-1 ring-red-100"
                                         : "border-gray-100"
                                 }`}>
                                     {/* Customer Row */}
                                     <button
-                                        onClick={() => {
-                                            setExpandedEmail(isExpanded ? null : customer.email.toLowerCase());
-                                            setNewNote("");
-                                        }}
+                                        onClick={() => openCustomer(isExpanded ? null : customer.key)}
                                         className="w-full px-5 py-4 flex items-center gap-4 text-left hover:bg-gray-50/50 transition-colors"
                                     >
                                         {/* Avatar */}
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                            customer.noShowCount >= 2
+                                            isBlacklisted
                                                 ? "bg-red-100 text-red-700"
                                                 : "bg-yellow-50 text-yellow-700"
                                         }`}>
@@ -213,25 +416,36 @@ export default function AdminLogsPage() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="font-bold text-gray-900">{customer.name}</span>
-                                                {customer.noShowCount >= 2 && (
+                                                {isBlacklisted && (
                                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700 tracking-wide">Blacklisted</span>
                                                 )}
-                                                {customer.noShowCount === 1 && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700 tracking-wide">1 No-Show</span>
+                                                {!isBlacklisted && customer.blacklist.activeNoShows > 0 && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700 tracking-wide">{customer.blacklist.activeNoShows} No-Show</span>
+                                                )}
+                                                {customer.related.length > 0 && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-gray-100 text-gray-500 tracking-wide">Linked</span>
                                                 )}
                                             </div>
-                                            <div className="text-xs text-gray-400 truncate">{customer.email}</div>
+                                            <div className="text-xs text-gray-400 truncate">
+                                                {customer.email}{customer.phone && ` · ${customer.phone}`}
+                                            </div>
                                         </div>
 
                                         {/* Meta Badges */}
-                                        <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+                                        <div className="hidden md:flex items-center gap-5 flex-shrink-0">
                                             <div className="text-right">
-                                                <div className="text-sm font-bold text-gray-900">{customer.totalBookings}</div>
-                                                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Bookings</div>
+                                                <div className="text-sm font-bold text-gray-900">{customer.visits}</div>
+                                                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Visits</div>
                                             </div>
+                                            {customer.upcoming > 0 && (
+                                                <div className="text-right">
+                                                    <div className="text-sm font-bold text-blue-600">{customer.upcoming}</div>
+                                                    <div className="text-[10px] text-gray-400 uppercase tracking-wider">Upcoming</div>
+                                                </div>
+                                            )}
                                             {customer.lastVisit && (
                                                 <div className="text-right">
-                                                    <div className="text-sm font-medium text-gray-600">{format(new Date(customer.lastVisit), "MMM d, yyyy")}</div>
+                                                    <div className="text-sm font-medium text-gray-600">{fmtDate(customer.lastVisit)}</div>
                                                     <div className="text-[10px] text-gray-400 uppercase tracking-wider">Last Visit</div>
                                                 </div>
                                             )}
@@ -239,9 +453,9 @@ export default function AdminLogsPage() {
 
                                         {/* Notes count + chevron */}
                                         <div className="flex items-center gap-2 flex-shrink-0">
-                                            {allNotesCount > 0 && (
+                                            {customer.adminNotesCount + customer.bookingNotesCount > 0 && (
                                                 <span className="bg-yellow-50 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                                                    {allNotesCount} note{allNotesCount !== 1 ? "s" : ""}
+                                                    {customer.adminNotesCount + customer.bookingNotesCount} note{customer.adminNotesCount + customer.bookingNotesCount !== 1 ? "s" : ""}
                                                 </span>
                                             )}
                                             <svg className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -252,47 +466,147 @@ export default function AdminLogsPage() {
 
                                     {/* Expanded Content */}
                                     {isExpanded && (
-                                        <div className="border-t border-gray-100 px-5 py-4 space-y-5 bg-gray-50/30">
+                                        <div className="border-t border-gray-100 px-5 py-4 space-y-6 bg-gray-50/30">
                                             {/* Contact Info */}
-                                            <div className="flex flex-wrap gap-4 text-sm">
-                                                <div className="flex items-center gap-2 text-gray-600">
-                                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                    </svg>
-                                                    {customer.email}
-                                                </div>
-                                                {customer.phone && (
-                                                    <div className="flex items-center gap-2 text-gray-600">
-                                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                            <div className="space-y-2">
+                                                <div className="flex flex-wrap gap-4 text-sm">
+                                                    <div className="flex items-center gap-2 text-gray-600 min-w-0">
+                                                        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                                         </svg>
-                                                        {customer.phone}
+                                                        <span className="truncate">{customer.email}</span>
                                                     </div>
-                                                )}
-                                                <div className="flex items-center gap-2 text-gray-600 md:hidden">
-                                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                    </svg>
-                                                    {customer.totalBookings} bookings
+                                                    {customer.phone && (
+                                                        <div className="flex items-center gap-2 text-gray-600">
+                                                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                                            </svg>
+                                                            {customer.phone}
+                                                        </div>
+                                                    )}
                                                 </div>
+                                                {customer.otherNames.length > 0 && (
+                                                    <p className="text-xs text-gray-500">
+                                                        Also booked as <span className="font-medium text-gray-700">{customer.otherNames.join(", ")}</span>
+                                                    </p>
+                                                )}
                                             </div>
 
-                                            {/* Booking Notes */}
-                                            {customer.bookingNotes.length > 0 && (
-                                                <div>
-                                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Customer Booking Notes</h4>
-                                                    <div className="space-y-2">
-                                                        {customer.bookingNotes.map((bn, i) => (
-                                                            <div key={i} className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">
-                                                                        {bn.serviceName || "Booking"} · {format(new Date(bn.date), "MMM d, yyyy")}
-                                                                    </span>
-                                                                </div>
-                                                                <p className="text-sm text-blue-800">{bn.note}</p>
-                                                            </div>
+                                            {/* Possibly the same person */}
+                                            {customer.related.length > 0 && (
+                                                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                                                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1.5">Possibly the same person</p>
+                                                    <div className="space-y-1">
+                                                        {customer.related.map((r) => (
+                                                            <button
+                                                                key={r.key}
+                                                                onClick={() => openRelated(r.key)}
+                                                                className="block w-full text-left text-sm text-amber-900 hover:underline"
+                                                            >
+                                                                <span className="font-semibold">{r.name}</span>
+                                                                {r.blacklisted && (
+                                                                    <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700 tracking-wide align-middle">Blacklisted</span>
+                                                                )}
+                                                                <span className="text-amber-700"> · same {r.sharedBy === "email" ? "e-mail" : "phone"}, different {r.sharedBy === "email" ? `phone (${r.phone ?? "none"})` : `e-mail (${r.email})`}</span>
+                                                                <span className="text-amber-500"> →</span>
+                                                            </button>
                                                         ))}
                                                     </div>
+                                                    <p className="text-[11px] text-amber-600 mt-1.5">Kept as separate customers because the e-mail or phone differs.</p>
+                                                </div>
+                                            )}
+
+                                            {/* Blacklist */}
+                                            {isBlacklisted ? (
+                                                <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold text-red-700">Blacklisted — can&apos;t book online with this e-mail + phone</p>
+                                                        <p className="text-xs text-red-600 mt-0.5">
+                                                            {customer.blacklist.manual
+                                                                ? customer.blacklist.reason
+                                                                    ? `Blacklisted by you: ${customer.blacklist.reason}`
+                                                                    : "Blacklisted by you."
+                                                                : `After ${customer.blacklist.activeNoShows} no-shows.`}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => liftBlacklist(customer)}
+                                                        disabled={blacklistBusy}
+                                                        className="px-3 py-1.5 bg-white border border-red-200 text-red-700 rounded-lg text-xs font-bold hover:bg-red-100 disabled:opacity-40 transition-colors flex-shrink-0"
+                                                    >
+                                                        Lift Blacklist
+                                                    </button>
+                                                </div>
+                                            ) : blacklistDraft?.key === customer.key ? (
+                                                <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
+                                                    <p className="text-xs text-red-700">They won&apos;t be able to book online with this e-mail + phone. Bookings you enter by hand still work.</p>
+                                                    <input
+                                                        value={blacklistDraft.reason}
+                                                        onChange={(e) => setBlacklistDraft({ key: customer.key, reason: e.target.value })}
+                                                        placeholder="Reason (optional)"
+                                                        maxLength={500}
+                                                        autoFocus
+                                                        className="w-full px-3 py-2 bg-white border border-red-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === "Enter") blacklistCustomer();
+                                                        }}
+                                                    />
+                                                    <div className="flex justify-end gap-2">
+                                                        <button
+                                                            onClick={() => setBlacklistDraft(null)}
+                                                            className="px-3 py-1.5 bg-white text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button
+                                                            onClick={blacklistCustomer}
+                                                            disabled={blacklistBusy}
+                                                            className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 disabled:opacity-40 transition-colors"
+                                                        >
+                                                            {blacklistBusy ? "Saving..." : "Blacklist"}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-between gap-3 text-xs">
+                                                    <span className="text-gray-400">
+                                                        {customer.blacklist.activeNoShows > 0
+                                                            ? `${customer.blacklist.activeNoShows} no-show${customer.blacklist.activeNoShows !== 1 ? "s" : ""} — blacklisted automatically at 2.`
+                                                            : "Blacklisted automatically after 2 no-shows."}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => setBlacklistDraft({ key: customer.key, reason: "" })}
+                                                        className="font-bold text-red-600 hover:underline flex-shrink-0"
+                                                    >
+                                                        Blacklist customer
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {/* Insight */}
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                                                <InsightTile label="Visits" value={String(customer.visits)} sub={customer.firstVisit ? `since ${fmtDate(customer.firstVisit)}` : undefined} />
+                                                <InsightTile label="Spent" value={`€${customer.totalSpent}`} sub="at current prices" />
+                                                <InsightTile label="Upcoming" value={String(customer.upcoming)} sub={customer.nextVisit ? `next ${fmtDate(customer.nextVisit, "MMM d")}` : undefined} />
+                                                <InsightTile label="Cancelled" value={String(customer.cancelled)} sub={totalBookings > 0 ? `${cancelRate}% of bookings` : undefined} />
+                                                <InsightTile label="Favourite" value={customer.favouriteService ?? "—"} small />
+                                                <InsightTile
+                                                    label="Comes Every"
+                                                    value={customer.averageGapDays !== null ? `~${customer.averageGapDays} days` : "—"}
+                                                    sub={customer.lastVisit ? `last ${fmtDate(customer.lastVisit, "MMM d")}` : undefined}
+                                                />
+                                            </div>
+
+                                            {/* History */}
+                                            {history ? (
+                                                <>
+                                                    {renderSection("Upcoming", history.upcoming, "No upcoming bookings.", customer)}
+                                                    {renderSection("Past Visits", history.past, "No visits yet.", customer)}
+                                                    {renderSection("Cancelled", history.cancelled, "No cancelled bookings.", customer)}
+                                                </>
+                                            ) : (
+                                                <div className="flex justify-center py-6">
+                                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500" />
                                                 </div>
                                             )}
 
@@ -300,13 +614,13 @@ export default function AdminLogsPage() {
                                             <div>
                                                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
                                                     Your Notes
-                                                    {customer.adminNotes.length > 0 && (
-                                                        <span className="ml-2 text-yellow-600 normal-case">({customer.adminNotes.length})</span>
+                                                    {customer.adminNotesCount > 0 && (
+                                                        <span className="ml-2 text-yellow-600 normal-case">({customer.adminNotesCount})</span>
                                                     )}
                                                 </h4>
-                                                {customer.adminNotes.length > 0 ? (
+                                                {history && history.adminNotes.length > 0 ? (
                                                     <div className="space-y-2 mb-3">
-                                                        {customer.adminNotes.map((an) => (
+                                                        {history.adminNotes.map((an) => (
                                                             <div key={an.id} className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 group">
                                                                 <div className="flex items-start justify-between gap-2">
                                                                     <div className="flex-1">
@@ -342,12 +656,12 @@ export default function AdminLogsPage() {
                                                         className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
                                                         onKeyDown={(e) => {
                                                             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                                                                addNote(customer.email);
+                                                                addNote(customer);
                                                             }
                                                         }}
                                                     />
                                                     <button
-                                                        onClick={() => addNote(customer.email)}
+                                                        onClick={() => addNote(customer)}
                                                         disabled={submitting || !newNote.trim()}
                                                         className="px-4 py-2 bg-yellow-500 text-white rounded-xl text-sm font-bold hover:bg-yellow-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all self-end flex-shrink-0"
                                                     >
@@ -368,6 +682,16 @@ export default function AdminLogsPage() {
                     </div>
                 )}
             </div>
+        </div>
+    );
+}
+
+function InsightTile({ label, value, sub, small }: { label: string; value: string; sub?: string; small?: boolean }) {
+    return (
+        <div className="bg-white rounded-xl border border-gray-100 p-3 min-w-0">
+            <div className={`font-bold text-gray-900 truncate ${small ? "text-sm leading-7" : "text-xl"}`} title={value}>{value}</div>
+            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{label}</div>
+            {sub && <div className="text-[11px] text-gray-400 mt-0.5 truncate">{sub}</div>}
         </div>
     );
 }

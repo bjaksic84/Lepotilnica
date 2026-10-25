@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { requireAdmin } from "@/lib/auth-guard";
-import { noShows, bookings, services } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
-import { format } from "date-fns";
+import { bookings } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { flagNoShow } from "@/lib/customer-insight";
+import { NO_SHOW_LIMIT, getBlacklistStatus, getBlacklistStatuses } from "@/lib/blacklist";
 
 // POST /api/admin/no-show — Record a no-show for a booking
 export async function POST(request: Request) {
@@ -18,10 +19,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "bookingId is required" }, { status: 400 });
         }
 
-        // Get the booking to find the customer email
         const booking = await db
             .select({
                 customerEmail: bookings.customerEmail,
+                customerPhone: bookings.customerPhone,
                 customerName: bookings.customerName,
             })
             .from(bookings)
@@ -32,52 +33,24 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Booking not found" }, { status: 404 });
         }
 
-        const email = booking.customerEmail.toLowerCase();
-        const today = format(new Date(), "yyyy-MM-dd");
-
-        // Upsert: increment count or insert new record
-        const existing = await db
-            .select()
-            .from(noShows)
-            .where(eq(noShows.customerEmail, email))
-            .get();
-
-        let newCount: number;
-
-        if (existing) {
-            newCount = existing.count + 1;
-            await db
-                .update(noShows)
-                .set({
-                    count: newCount,
-                    lastNoShowDate: today,
-                })
-                .where(eq(noShows.customerEmail, email));
-        } else {
-            newCount = 1;
-            await db.insert(noShows).values({
-                customerEmail: email,
-                count: 1,
-                lastNoShowDate: today,
-            });
-        }
-
-        // Also mark the booking as no-show (cancelled with reason)
+        // The mark on the booking is the count: a customer's no-shows are their
+        // bookings marked this way (see lib/blacklist). Both writes are
+        // idempotent, so a repeated click cannot count the booking twice.
+        await flagNoShow(bookingId);
         await db
             .update(bookings)
             .set({ status: "cancelled" })
             .where(eq(bookings.id, bookingId));
 
-        const isBlacklisted = newCount >= 2;
+        const status = await getBlacklistStatus(booking.customerEmail, booking.customerPhone);
 
         return NextResponse.json({
             success: true,
-            customerEmail: email,
-            noShowCount: newCount,
-            isBlacklisted,
-            message: isBlacklisted
-                ? `${booking.customerName} is now blacklisted (${newCount} no-shows)`
-                : `No-show recorded for ${booking.customerName} (${newCount}/2)`,
+            noShowCount: status.activeNoShows,
+            isBlacklisted: status.blacklisted,
+            message: status.blacklisted
+                ? `${booking.customerName} is now blacklisted (${status.activeNoShows} no-shows)`
+                : `No-show recorded for ${booking.customerName} (${status.activeNoShows}/${NO_SHOW_LIMIT})`,
         });
     } catch (error) {
         console.error("No-show error:", error);
@@ -85,14 +58,15 @@ export async function POST(request: Request) {
     }
 }
 
-// GET /api/admin/no-show — Get all no-show records (for pre-loading blacklist data)
+// GET /api/admin/no-show — Blacklist state of every customer that has any, for
+// the dashboard's badges. Keyed by customer (e-mail + phone).
 export async function GET() {
     const unauth = await requireAdmin();
     if (unauth) return unauth;
 
     try {
-        const records = await db.select().from(noShows);
-        return NextResponse.json(records);
+        const statuses = await getBlacklistStatuses();
+        return NextResponse.json([...statuses].map(([key, status]) => ({ key, ...status })));
     } catch (error) {
         console.error("No-show fetch error:", error);
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

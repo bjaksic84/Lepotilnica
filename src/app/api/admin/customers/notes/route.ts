@@ -3,17 +3,19 @@ import { db } from "@/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { customerNotes } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { normalizeEmail, normalizePhone } from "@/lib/customer-identity";
 
-// POST /api/admin/customers/notes — Add an admin note for a customer
+// POST /api/admin/customers/notes — Add an admin note for a customer. A
+// customer is the e-mail + phone pair, so the note is filed under both.
 export async function POST(request: Request) {
     const unauth = await requireAdmin();
     if (unauth) return unauth;
 
     try {
         const body = await request.json();
-        const { customerEmail, note } = body;
+        const { customerEmail, customerPhone, note } = body;
 
-        if (!customerEmail || !note || !note.trim()) {
+        if (typeof customerEmail !== "string" || typeof note !== "string" || !customerEmail.trim() || !note.trim()) {
             return NextResponse.json(
                 { error: "customerEmail and note are required" },
                 { status: 400 }
@@ -23,7 +25,8 @@ export async function POST(request: Request) {
         const [inserted] = await db
             .insert(customerNotes)
             .values({
-                customerEmail: customerEmail.toLowerCase(),
+                customerEmail: normalizeEmail(customerEmail),
+                customerPhone: typeof customerPhone === "string" ? normalizePhone(customerPhone) || null : null,
                 note: note.trim(),
                 author: "admin",
             })

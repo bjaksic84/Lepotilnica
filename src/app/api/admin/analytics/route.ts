@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth-guard";
 import { bookings, services } from "@/db/schema";
 import { eq, and, gte, lte, not, sql, desc, count } from "drizzle-orm";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { customerKey } from "@/lib/customer-identity";
 
 export async function GET() {
     const unauth = await requireAdmin();
@@ -22,6 +23,7 @@ export async function GET() {
                 id: bookings.id,
                 customerName: bookings.customerName,
                 customerEmail: bookings.customerEmail,
+                customerPhone: bookings.customerPhone,
                 serviceId: bookings.serviceId,
                 date: bookings.date,
                 time: bookings.time,
@@ -107,12 +109,14 @@ export async function GET() {
         const serviceRanking = Object.values(serviceCount).sort((a, b) => b.count - a.count);
         const mostBookedService = serviceRanking[0] || null;
 
-        // New vs returning customers (all-time analysis)
+        // New vs returning customers (all-time analysis). A customer is the
+        // e-mail + phone pair, the same rule the Logs page groups by.
         const customerFirstBooking: Record<string, string> = {};
         const sortedAll = [...allBookings].sort((a, b) => a.date.localeCompare(b.date));
         for (const b of sortedAll) {
-            if (!customerFirstBooking[b.customerEmail]) {
-                customerFirstBooking[b.customerEmail] = b.date;
+            const key = customerKey(b.customerEmail, b.customerPhone);
+            if (!customerFirstBooking[key]) {
+                customerFirstBooking[key] = b.date;
             }
         }
 
@@ -120,10 +124,11 @@ export async function GET() {
         let returningCustomersThisMonth = 0;
         const seenThisMonth = new Set<string>();
         for (const b of confirmedThisMonth) {
-            if (seenThisMonth.has(b.customerEmail)) continue;
-            seenThisMonth.add(b.customerEmail);
+            const key = customerKey(b.customerEmail, b.customerPhone);
+            if (seenThisMonth.has(key)) continue;
+            seenThisMonth.add(key);
 
-            const firstDate = customerFirstBooking[b.customerEmail];
+            const firstDate = customerFirstBooking[key];
             if (firstDate && firstDate >= thisMonthStart) {
                 newCustomersThisMonth++;
             } else {
@@ -172,6 +177,7 @@ export async function GET() {
         // ── Loyal / Steady Customers ─────────────────────────────────────
         // A "loyal" customer is someone with 3+ bookings across 2+ distinct months
         const customerStats: Record<string, {
+            key: string;
             name: string;
             email: string;
             phone: string | null;
@@ -183,12 +189,13 @@ export async function GET() {
         }> = {};
 
         for (const b of sortedAll) {
-            const email = b.customerEmail;
+            const key = customerKey(b.customerEmail, b.customerPhone);
             const month = b.date.slice(0, 7); // YYYY-MM
-            if (!customerStats[email]) {
-                customerStats[email] = {
+            if (!customerStats[key]) {
+                customerStats[key] = {
+                    key,
                     name: b.customerName,
-                    email,
+                    email: b.customerEmail,
                     phone: b.customerPhone ?? null,
                     totalBookings: 0,
                     totalSpent: 0,
@@ -197,7 +204,7 @@ export async function GET() {
                     favouriteService: "",
                 };
             }
-            const stat = customerStats[email];
+            const stat = customerStats[key];
             stat.totalBookings++;
             stat.totalSpent += b.servicePrice || 0;
             stat.months.add(month);
@@ -210,14 +217,15 @@ export async function GET() {
         // Determine favourite service per customer
         const customerServiceCount: Record<string, Record<string, number>> = {};
         for (const b of sortedAll) {
+            const key = customerKey(b.customerEmail, b.customerPhone);
             const svcName = b.serviceName || "Unknown";
-            if (!customerServiceCount[b.customerEmail]) customerServiceCount[b.customerEmail] = {};
-            customerServiceCount[b.customerEmail][svcName] = (customerServiceCount[b.customerEmail][svcName] || 0) + 1;
+            if (!customerServiceCount[key]) customerServiceCount[key] = {};
+            customerServiceCount[key][svcName] = (customerServiceCount[key][svcName] || 0) + 1;
         }
-        for (const email of Object.keys(customerStats)) {
-            const svcCounts = customerServiceCount[email] || {};
+        for (const key of Object.keys(customerStats)) {
+            const svcCounts = customerServiceCount[key] || {};
             const sorted = Object.entries(svcCounts).sort((a, b) => b[1] - a[1]);
-            if (sorted.length > 0) customerStats[email].favouriteService = sorted[0][0];
+            if (sorted.length > 0) customerStats[key].favouriteService = sorted[0][0];
         }
 
         // Filter to loyal: 3+ bookings AND visited in 2+ distinct months
@@ -225,6 +233,7 @@ export async function GET() {
             .filter(c => c.totalBookings >= 3 && c.months.size >= 2)
             .sort((a, b) => b.totalBookings - a.totalBookings)
             .map(c => ({
+                key: c.key,
                 name: c.name,
                 email: c.email,
                 phone: c.phone,
@@ -258,6 +267,7 @@ export async function GET() {
                 time: b.time,
                 customerName: b.customerName,
                 customerEmail: b.customerEmail,
+                customerPhone: b.customerPhone,
                 serviceName: b.serviceName,
                 status: b.status,
                 bookingId: b.id,

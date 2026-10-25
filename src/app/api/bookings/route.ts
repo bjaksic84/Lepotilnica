@@ -1,12 +1,33 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { noShows } from "@/db/schema";
 import { bookingSchema, multiBookingSchema } from "@/lib/validators";
-import { eq } from "drizzle-orm";
 import { sendBookingConfirmation, sendNewBookingNotification } from "@/lib/email";
 import { runAfterResponse } from "@/lib/after-response";
 import { bookingLimiter, getClientIp, enforceRateLimit } from "@/lib/rate-limit";
 import { createBookings } from "@/lib/booking-service";
+import { getBlacklistStatus } from "@/lib/blacklist";
+import { BUSINESS } from "@/lib/site";
+
+/**
+ * The blacklist lives in tables added by a hand-applied migration (0005). If
+ * this code ever ships before that migration runs, the lookup fails with "no
+ * such table" — and failing the whole booking over it would take online
+ * booking down to stop a handful of people. So that one error lets the booking
+ * through, loudly; anything else still fails the request.
+ */
+async function isBlacklistedForBooking(email: string, phone: string): Promise<boolean> {
+    try {
+        return (await getBlacklistStatus(email, phone)).blacklisted;
+    } catch (error) {
+        // Drizzle wraps the driver's error; the SQLite message is on `cause`.
+        let message = "";
+        for (let e: unknown = error; e; e = (e as { cause?: unknown }).cause) message += ` ${(e as Error).message ?? e}`;
+        if (/no such table/i.test(message)) {
+            console.error("[Blacklist] Tables missing — apply drizzle/0005_customer_insight.sql. Booking allowed.", error);
+            return false;
+        }
+        throw error;
+    }
+}
 
 export async function POST(request: Request) {
     try {
@@ -58,15 +79,13 @@ export async function POST(request: Request) {
         const { date } = validatedData;
 
         // ── Blacklist check ──────────────────────────────────────
-        const noShowRecord = await db
-            .select()
-            .from(noShows)
-            .where(eq(noShows.customerEmail, validatedData.customerEmail.toLowerCase()))
-            .get();
-
-        if (noShowRecord && noShowRecord.count >= 2) {
+        // Per customer, on the exact e-mail + phone pair (see lib/blacklist).
+        // The wording names neither no-shows nor which detail matched: Karin
+        // may have blacklisted someone for another reason, and the booking
+        // page shows this text to the customer as it is.
+        if (await isBlacklistedForBooking(validatedData.customerEmail, validatedData.customerPhone)) {
             return NextResponse.json(
-                { error: "This email address has been restricted from making bookings due to repeated no-shows. Please contact us directly." },
+                { error: `Spletna rezervacija s temi podatki ni mogoča. Za termin nas prosimo pokličite na ${BUSINESS.phoneDisplay}.` },
                 { status: 403 }
             );
         }
