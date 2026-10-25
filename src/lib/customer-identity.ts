@@ -21,6 +21,18 @@
  * to tell Karin whether she is about to create a new customer.
  */
 
+/**
+ * What a deleted customer's bookings say instead of a name. Deleting
+ * anonymises rather than removes: the bookings stay, for Analytics' revenue,
+ * with no name, e-mail, phone or note — so they belong to no customer.
+ */
+export const ANONYMISED_NAME = "Izbrisana stranka";
+
+/** A booking whose customer was deleted carries no e-mail. */
+export function isAnonymised(email: string | null | undefined): boolean {
+    return !email || !email.trim();
+}
+
 export function normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
 }

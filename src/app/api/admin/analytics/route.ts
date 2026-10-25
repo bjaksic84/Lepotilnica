@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth-guard";
 import { bookings, services } from "@/db/schema";
 import { eq, and, gte, lte, not, sql, desc, count } from "drizzle-orm";
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { customerKey } from "@/lib/customer-identity";
+import { customerKey, isAnonymised } from "@/lib/customer-identity";
 import { salonNow } from "@/lib/schedule";
 
 export async function GET() {
@@ -119,6 +119,8 @@ export async function GET() {
         const customerFirstBooking: Record<string, string> = {};
         const sortedAll = [...allBookings].sort((a, b) => a.date.localeCompare(b.date));
         for (const b of sortedAll) {
+            // Deleted customers' bookings still count as revenue, not as a customer.
+            if (isAnonymised(b.customerEmail)) continue;
             const key = customerKey(b.customerEmail, b.customerPhone);
             if (!customerFirstBooking[key]) {
                 customerFirstBooking[key] = b.date;
@@ -129,6 +131,8 @@ export async function GET() {
         let returningCustomersThisMonth = 0;
         const seenThisMonth = new Set<string>();
         for (const b of confirmedThisMonth) {
+            // Deleted customers' bookings still count as revenue, not as a customer.
+            if (isAnonymised(b.customerEmail)) continue;
             const key = customerKey(b.customerEmail, b.customerPhone);
             if (seenThisMonth.has(key)) continue;
             seenThisMonth.add(key);
@@ -193,6 +197,8 @@ export async function GET() {
         }> = {};
 
         for (const b of sortedAll) {
+            // Deleted customers' bookings still count as revenue, not as a customer.
+            if (isAnonymised(b.customerEmail)) continue;
             const key = customerKey(b.customerEmail, b.customerPhone);
             const month = b.date.slice(0, 7); // YYYY-MM
             if (!customerStats[key]) {
@@ -221,6 +227,8 @@ export async function GET() {
         // Determine favourite service per customer
         const customerServiceCount: Record<string, Record<string, number>> = {};
         for (const b of sortedAll) {
+            // Deleted customers' bookings still count as revenue, not as a customer.
+            if (isAnonymised(b.customerEmail)) continue;
             const key = customerKey(b.customerEmail, b.customerPhone);
             const svcName = b.serviceName || "Unknown";
             if (!customerServiceCount[key]) customerServiceCount[key] = {};

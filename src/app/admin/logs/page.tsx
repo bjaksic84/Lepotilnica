@@ -5,6 +5,9 @@ import { format, parseISO } from "date-fns";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ToastContainer, { useToast } from "@/components/Toast";
+import AddBookingModal from "@/components/admin/AddBookingModal";
+import CustomerFormModal, { type CustomerFormValues } from "@/components/admin/CustomerFormModal";
+import { ANONYMISED_NAME } from "@/lib/customer-identity";
 import type { CustomerHistory, CustomerSummary, HistoryEntry } from "@/lib/customer-insight";
 
 // Stored dates are the salon's wall clock; parseISO keeps them local rather
@@ -12,6 +15,12 @@ import type { CustomerHistory, CustomerSummary, HistoryEntry } from "@/lib/custo
 const fmtDate = (date: string, pattern = "MMM d, yyyy") => format(parseISO(date), pattern);
 
 const digitsOf = (s: string) => s.replace(/\D/g, "");
+
+/** The first field error the API sent back, else its error, else `fallback`. */
+const errorMessage = (data: { error?: unknown; details?: Record<string, string[] | undefined> }, fallback: string) => {
+    const firstFieldError = data.details && Object.values(data.details).flat().find(Boolean);
+    return firstFieldError || (typeof data.error === "string" ? data.error : fallback);
+};
 
 export default function AdminLogsPage() {
     const [customers, setCustomers] = useState<CustomerSummary[]>([]);
@@ -25,6 +34,10 @@ export default function AdminLogsPage() {
     const [savingReason, setSavingReason] = useState(false);
     const [blacklistDraft, setBlacklistDraft] = useState<{ key: string; reason: string } | null>(null);
     const [blacklistBusy, setBlacklistBusy] = useState(false);
+    const [customerForm, setCustomerForm] = useState<{ mode: "create" } | { mode: "edit"; customer: CustomerSummary } | null>(null);
+    const [bookingFor, setBookingFor] = useState<CustomerSummary | null>(null);
+    const [noteDraft, setNoteDraft] = useState<{ id: number; text: string } | null>(null);
+    const [savingNote, setSavingNote] = useState(false);
 
     // The polling interval outlives renders, so it reads the open customer here.
     const expandedRef = useRef<string | null>(null);
@@ -84,6 +97,7 @@ export default function AdminLogsPage() {
         setNewNote("");
         setReasonDraft(null);
         setBlacklistDraft(null);
+        setNoteDraft(null);
         if (key) fetchHistory(key);
     };
 
@@ -200,6 +214,118 @@ export default function AdminLogsPage() {
             addToast({ type: "error", title: "Error", message: "Failed to lift the blacklist." });
         } finally {
             setBlacklistBusy(false);
+        }
+    };
+
+    const saveNewCustomer = async (values: CustomerFormValues): Promise<string | null> => {
+        try {
+            const res = await fetch("/api/admin/customers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(values),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 201 || (res.status === 409 && data.key)) {
+                setCustomerForm(null);
+                addToast(
+                    res.status === 201
+                        ? { type: "success", title: "Customer Added", message: `${values.customerName} is now in your logs.` }
+                        : { type: "info", title: "Already a Customer", message: data.error }
+                );
+                await fetchCustomers();
+                openRelated(data.key);
+                return null;
+            }
+            return errorMessage(data, "Failed to add the customer.");
+        } catch {
+            return "Network error. Please try again.";
+        }
+    };
+
+    const saveEditedCustomer = async (customer: CustomerSummary, values: CustomerFormValues, merge = false): Promise<string | null> => {
+        try {
+            const res = await fetch("/api/admin/customers", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ key: customer.key, ...values, merge }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                setCustomerForm(null);
+                addToast(
+                    data.merged
+                        ? { type: "success", title: "Customers Merged", message: `${customer.name} and ${values.customerName} are now one customer.` }
+                        : { type: "success", title: "Customer Updated", message: "Saved on all of their bookings." }
+                );
+                setHistories({});
+                await fetchCustomers();
+                openRelated(data.key);
+                return null;
+            }
+            if (res.status === 409 && data.conflict) {
+                const other = data.conflict;
+                const confirmed = confirm(
+                    `${other.name} already has this e-mail and phone (${other.visits} visits, ${other.upcoming} upcoming).\n\n` +
+                        `Merge them into one customer? Every booking, note and no-show of both is kept together under the new details. This cannot be undone.`
+                );
+                return confirmed ? saveEditedCustomer(customer, values, true) : "Not saved: those details belong to another customer.";
+            }
+            return errorMessage(data, "Failed to save the changes.");
+        } catch {
+            return "Network error. Please try again.";
+        }
+    };
+
+    const deleteCustomer = async (customer: CustomerSummary) => {
+        const kept = customer.visits + customer.cancelled;
+        const message =
+            `Delete ${customer.name}?\n\n` +
+            `Their name, e-mail, phone and notes are removed for good.` +
+            (kept > 0 ? ` Their ${kept} past booking${kept === 1 ? "" : "s"} stay as "${ANONYMISED_NAME}", so revenue in Analytics doesn't change.` : "") +
+            (customer.blacklist.blacklisted ? `\n\nThey stay blacklisted, so their e-mail and phone are kept for that alone.` : "") +
+            `\n\nThis cannot be undone.`;
+        if (!confirm(message)) return;
+        try {
+            const res = await fetch(`/api/admin/customers?key=${encodeURIComponent(customer.key)}`, { method: "DELETE" });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                addToast({
+                    type: "info",
+                    title: "Customer Deleted",
+                    message: data.anonymisedBookings > 0
+                        ? `${data.anonymisedBookings} booking${data.anonymisedBookings === 1 ? "" : "s"} kept anonymously for Analytics.`
+                        : `${customer.name} has been removed.`,
+                });
+                setExpandedKey(null);
+                fetchCustomers();
+            } else {
+                addToast({ type: "error", title: "Not Deleted", message: errorMessage(data, "Failed to delete the customer.") });
+            }
+        } catch {
+            addToast({ type: "error", title: "Error", message: "Failed to delete the customer." });
+        }
+    };
+
+    const saveNoteEdit = async () => {
+        if (!noteDraft || !noteDraft.text.trim()) return;
+        setSavingNote(true);
+        try {
+            const res = await fetch("/api/admin/customers/notes", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: noteDraft.id, note: noteDraft.text }),
+            });
+            if (res.ok) {
+                addToast({ type: "success", title: "Note Updated", message: "Your note has been saved." });
+                setNoteDraft(null);
+                if (expandedKey) fetchHistory(expandedKey);
+            } else {
+                addToast({ type: "error", title: "Error", message: "Failed to update the note." });
+            }
+        } catch {
+            addToast({ type: "error", title: "Error", message: "Failed to update the note." });
+        } finally {
+            setSavingNote(false);
         }
     };
 
@@ -332,6 +458,45 @@ export default function AdminLogsPage() {
         <div className="min-h-screen bg-gray-50 pt-24 pb-20">
             <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
+            {customerForm?.mode === "create" && (
+                <CustomerFormModal
+                    eyebrow="Customer Logs"
+                    title="Add customer"
+                    withNote
+                    submitLabel="Add Customer"
+                    hint="Their first booking with this e-mail and phone will land on this customer."
+                    onSubmit={saveNewCustomer}
+                    onClose={() => setCustomerForm(null)}
+                />
+            )}
+            {customerForm?.mode === "edit" && (
+                <CustomerFormModal
+                    eyebrow="Edit customer"
+                    title={customerForm.customer.name}
+                    initial={{
+                        customerName: customerForm.customer.name,
+                        customerPhone: customerForm.customer.phone ?? "",
+                        customerEmail: customerForm.customer.email,
+                    }}
+                    submitLabel="Save Changes"
+                    hint="New details are written to all of their bookings. If they belong to another customer, you'll be asked whether to merge the two."
+                    onSubmit={(values) => saveEditedCustomer(customerForm.customer, values)}
+                    onClose={() => setCustomerForm(null)}
+                />
+            )}
+            {bookingFor && (
+                <AddBookingModal
+                    initialCustomer={{ name: bookingFor.name, email: bookingFor.email, phone: bookingFor.phone ?? "" }}
+                    onClose={() => setBookingFor(null)}
+                    onCreated={() => {
+                        addToast({ type: "success", title: "Booking Created", message: `Booked for ${bookingFor.name}.` });
+                        setBookingFor(null);
+                        fetchCustomers();
+                        if (expandedKey) fetchHistory(expandedKey);
+                    }}
+                />
+            )}
+
             <div className="container mx-auto px-4 max-w-7xl">
                 <div className="mb-8">
                     <Link href="/admin" className="text-yellow-600 text-sm font-bold hover:underline mb-4 inline-block">← Back to Dashboard</Link>
@@ -339,9 +504,9 @@ export default function AdminLogsPage() {
                     <p className="text-gray-500 mt-1">Every customer&apos;s visits, upcoming and cancelled bookings, and your notes. A customer is one e-mail + phone pair.</p>
                 </div>
 
-                {/* Search */}
-                <div className="mb-6">
-                    <div className="relative max-w-md">
+                {/* Search + add */}
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="relative flex-1 max-w-md">
                         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
@@ -353,6 +518,13 @@ export default function AdminLogsPage() {
                             className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
                         />
                     </div>
+                    <button
+                        onClick={() => setCustomerForm({ mode: "create" })}
+                        className="sm:ml-auto inline-flex items-center justify-center gap-2 px-5 py-3 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors shadow-sm"
+                    >
+                        <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                        Add Customer
+                    </button>
                 </div>
 
                 {/* Stats */}
@@ -467,6 +639,35 @@ export default function AdminLogsPage() {
                                     {/* Expanded Content */}
                                     {isExpanded && (
                                         <div className="border-t border-gray-100 px-5 py-4 space-y-6 bg-gray-50/30">
+                                            {/* Actions */}
+                                            {customer.blacklistOnly ? (
+                                                <p className="text-xs text-gray-500">
+                                                    A deleted customer, kept only so the blacklist below keeps them from booking online. Lift it to remove them entirely.
+                                                </p>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button
+                                                        onClick={() => setBookingFor(customer)}
+                                                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gray-900 text-white rounded-lg text-xs font-bold hover:bg-gray-800 transition-colors"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                                        New Booking
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setCustomerForm({ mode: "edit", customer })}
+                                                        className="px-3.5 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors"
+                                                    >
+                                                        Edit Details
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteCustomer(customer)}
+                                                        className="px-3.5 py-2 bg-white border border-red-100 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors"
+                                                    >
+                                                        Delete Customer
+                                                    </button>
+                                                </div>
+                                            )}
+
                                             {/* Contact Info */}
                                             <div className="space-y-2">
                                                 <div className="flex flex-wrap gap-4 text-sm">
@@ -524,7 +725,7 @@ export default function AdminLogsPage() {
                                                         <p className="text-xs text-red-600 mt-0.5">
                                                             {customer.blacklist.manual
                                                                 ? customer.blacklist.reason
-                                                                    ? `Blacklisted by you: ${customer.blacklist.reason}`
+                                                                    ? `Reason: ${customer.blacklist.reason}`
                                                                     : "Blacklisted by you."
                                                                 : `After ${customer.blacklist.activeNoShows} no-shows.`}
                                                         </p>
@@ -621,24 +822,68 @@ export default function AdminLogsPage() {
                                                 {history && history.adminNotes.length > 0 ? (
                                                     <div className="space-y-2 mb-3">
                                                         {history.adminNotes.map((an) => (
-                                                            <div key={an.id} className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 group">
-                                                                <div className="flex items-start justify-between gap-2">
-                                                                    <div className="flex-1">
-                                                                        <span className="text-[10px] font-bold text-yellow-500 uppercase tracking-wider block mb-1">
-                                                                            {format(new Date(an.createdAt), "MMM d, yyyy · HH:mm")}
-                                                                        </span>
-                                                                        <p className="text-sm text-yellow-800 whitespace-pre-wrap">{an.note}</p>
+                                                            <div key={an.id} className="bg-yellow-50 border border-yellow-100 rounded-xl p-3">
+                                                                {noteDraft?.id === an.id ? (
+                                                                    <div className="space-y-2">
+                                                                        <textarea
+                                                                            value={noteDraft.text}
+                                                                            onChange={(e) => setNoteDraft({ id: an.id, text: e.target.value })}
+                                                                            rows={3}
+                                                                            autoFocus
+                                                                            className="w-full px-3 py-2 bg-white border border-yellow-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveNoteEdit();
+                                                                            }}
+                                                                        />
+                                                                        <div className="flex justify-end gap-2">
+                                                                            <button
+                                                                                onClick={() => setNoteDraft(null)}
+                                                                                className="px-3 py-1.5 bg-white text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors"
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={saveNoteEdit}
+                                                                                disabled={savingNote || !noteDraft.text.trim()}
+                                                                                className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs font-bold hover:bg-yellow-600 disabled:opacity-40 transition-colors"
+                                                                            >
+                                                                                {savingNote ? "Saving..." : "Save Note"}
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
-                                                                    <button
-                                                                        onClick={() => deleteNote(an.id)}
-                                                                        className="opacity-0 group-hover:opacity-100 p-1 text-yellow-400 hover:text-red-500 transition-all flex-shrink-0"
-                                                                        title="Delete note"
-                                                                    >
-                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                        </svg>
-                                                                    </button>
-                                                                </div>
+                                                                ) : (
+                                                                    <div className="flex items-start justify-between gap-2">
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <span className="text-[10px] font-bold text-yellow-500 uppercase tracking-wider block mb-1">
+                                                                                {format(new Date(an.createdAt), "MMM d, yyyy · HH:mm")}
+                                                                            </span>
+                                                                            <p className="text-sm text-yellow-800 whitespace-pre-wrap">{an.note}</p>
+                                                                        </div>
+                                                                        {/* Always visible: hover-only controls never appear on a phone. */}
+                                                                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                                                                            <button
+                                                                                onClick={() => setNoteDraft({ id: an.id, text: an.note })}
+                                                                                className="p-1 text-yellow-500 hover:text-yellow-700 transition-colors"
+                                                                                title="Edit note"
+                                                                                aria-label="Edit note"
+                                                                            >
+                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.232-6.232a2.5 2.5 0 113.536 3.536L12.536 16.536 9 17l.464-3.536z" />
+                                                                                </svg>
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => deleteNote(an.id)}
+                                                                                className="p-1 text-yellow-400 hover:text-red-500 transition-colors"
+                                                                                title="Delete note"
+                                                                                aria-label="Delete note"
+                                                                            >
+                                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                                </svg>
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </div>

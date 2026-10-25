@@ -1,7 +1,7 @@
 import { db } from "@/db";
-import { bookings, services, categories, customerNotes, bookingAbsences } from "@/db/schema";
+import { bookings, services, categories, customerNotes, bookingAbsences, customerProfiles } from "@/db/schema";
 import { eq, sql, type SQL } from "drizzle-orm";
-import { customerKey, normalizeEmail, normalizePhone, parseCustomerKey } from "@/lib/customer-identity";
+import { customerKey, isAnonymised, normalizeEmail, normalizePhone, parseCustomerKey } from "@/lib/customer-identity";
 import { salonNow, timeToMinutes, minutesToTime } from "@/lib/schedule";
 import {
     CLEAR_STATUS,
@@ -51,6 +51,14 @@ export type InsightNote = {
     createdAt: string;
 };
 
+/** A customer Karin added or renamed herself (see customerProfiles). */
+export type InsightProfile = {
+    customerEmail: string;
+    customerPhone: string;
+    name: string;
+    updatedAt: string;
+};
+
 export type RelatedCustomer = {
     key: string;
     name: string;
@@ -62,7 +70,7 @@ export type RelatedCustomer = {
 
 export type CustomerSummary = {
     key: string;
-    /** As entered on their most recent booking. */
+    /** Whichever was entered last: the name on their newest booking, or Karin's. */
     name: string;
     /** Other spellings used on earlier bookings, most recent first. */
     otherNames: string[];
@@ -88,6 +96,11 @@ export type CustomerSummary = {
     bookingNotesCount: number;
     /** Other customers sharing this e-mail or this phone number. */
     related: RelatedCustomer[];
+    /**
+     * Nothing left but a blacklist entry — typically a deleted customer kept
+     * blocked. There is nothing to edit, book or delete, only a block to lift.
+     */
+    blacklistOnly: boolean;
 };
 
 export type HistoryEntry = {
@@ -147,13 +160,16 @@ function noteMatches(note: InsightNote, email: string, phone: string): boolean {
     return note.customerPhone === null || normalizePhone(note.customerPhone) === phone;
 }
 
-function summarise(key: string, rows: InsightBooking[], now: SalonClock): CustomerSummary {
+function summarise(key: string, rows: InsightBooking[], now: SalonClock, profile?: InsightProfile): CustomerSummary {
     // Highest id = entered most recently, which is what "current details"
     // means. Appointment date would be wrong: someone who books a far-off date
     // first and a nearer one later has typed their newest details second.
     const newestFirst = [...rows].sort((a, b) => b.id - a.id);
     const latest = newestFirst[0];
-    const name = latest.customerName.trim();
+    // A name Karin set wins until the customer books again after it. Both
+    // timestamps are SQLite CURRENT_TIMESTAMP text, so they compare as strings.
+    const name =
+        profile && profile.updatedAt >= latest.createdAt ? profile.name.trim() : latest.customerName.trim();
 
     const otherNames: string[] = [];
     const seenNames = new Set([name.toLowerCase()]);
@@ -163,6 +179,8 @@ function summarise(key: string, rows: InsightBooking[], now: SalonClock): Custom
         seenNames.add(n.toLowerCase());
         otherNames.push(n);
     }
+    // A name Karin entered that a later booking overrode stays searchable.
+    if (profile && !seenNames.has(profile.name.trim().toLowerCase())) otherNames.push(profile.name.trim());
 
     const past = rows.filter((r) => phaseOf(r, now) === "past").sort(byStartAsc);
     const upcoming = rows.filter((r) => phaseOf(r, now) === "upcoming").sort(byStartAsc);
@@ -211,10 +229,11 @@ function summarise(key: string, rows: InsightBooking[], now: SalonClock): Custom
         adminNotesCount: 0,
         bookingNotesCount: rows.filter((r) => r.notes && r.notes.trim()).length,
         related: [],
+        blacklistOnly: false,
     };
 }
 
-/** A customer with no bookings left, known only from a note or a blacklist. */
+/** A customer with no bookings, known only from a profile, a note or a blacklist. */
 function emptySummary(key: string, name: string, email: string, phone: string | null): CustomerSummary {
     return {
         key,
@@ -236,6 +255,7 @@ function emptySummary(key: string, name: string, email: string, phone: string | 
         adminNotesCount: 0,
         bookingNotesCount: 0,
         related: [],
+        blacklistOnly: false,
     };
 }
 
@@ -244,18 +264,29 @@ export function buildCustomerSummaries(
     rows: InsightBooking[],
     notes: InsightNote[],
     blacklist: Map<string, BlacklistStatus>,
-    now: SalonClock
+    now: SalonClock,
+    profiles: InsightProfile[] = []
 ): CustomerSummary[] {
     const groups = new Map<string, InsightBooking[]>();
     for (const r of rows) {
+        // A deleted customer's bookings are kept for revenue but belong to no one.
+        if (isAnonymised(r.customerEmail)) continue;
         const key = customerKey(r.customerEmail, r.customerPhone);
         const group = groups.get(key);
         if (group) group.push(r);
         else groups.set(key, [r]);
     }
 
+    const profileByKey = new Map(profiles.map((p) => [customerKey(p.customerEmail, p.customerPhone), p]));
     const summaries = new Map<string, CustomerSummary>();
-    for (const [key, group] of groups) summaries.set(key, summarise(key, group, now));
+    for (const [key, group] of groups) summaries.set(key, summarise(key, group, now, profileByKey.get(key)));
+
+    // Customers Karin added who have not booked yet.
+    for (const [key, profile] of profileByKey) {
+        if (summaries.has(key)) continue;
+        const { email, phone } = parseCustomerKey(key)!;
+        summaries.set(key, emptySummary(key, profile.name.trim(), email, phone || null));
+    }
 
     for (const note of notes) {
         const email = normalizeEmail(note.customerEmail);
@@ -276,7 +307,7 @@ export function buildCustomerSummaries(
     for (const [key, status] of blacklist) {
         if (!status.blacklisted || summaries.has(key)) continue;
         const { email, phone } = parseCustomerKey(key)!;
-        summaries.set(key, emptySummary(key, email, email, phone || null));
+        summaries.set(key, { ...emptySummary(key, email, email, phone || null), blacklistOnly: true });
     }
     for (const s of summaries.values()) s.blacklist = blacklist.get(s.key) ?? CLEAR_STATUS;
 
@@ -403,10 +434,24 @@ async function selectNotes(where?: SQL): Promise<InsightNote[]> {
 }
 
 export async function getCustomerSummaries(now: SalonClock = salonNow()): Promise<CustomerSummary[]> {
-    const [rows, notes, entries] = await Promise.all([selectInsightBookings(), selectNotes(), selectBlacklistEntries()]);
+    const [rows, notes, entries, profiles] = await Promise.all([
+        selectInsightBookings(),
+        selectNotes(),
+        selectBlacklistEntries(),
+        db
+            .select({
+                customerEmail: customerProfiles.customerEmail,
+                customerPhone: customerProfiles.customerPhone,
+                name: customerProfiles.name,
+                updatedAt: customerProfiles.updatedAt,
+            })
+            .from(customerProfiles),
+    ]);
     // The rows already carry each booking's no-show mark.
-    const noShowKeys = rows.filter((r) => r.noShow).map((r) => customerKey(r.customerEmail, r.customerPhone));
-    return buildCustomerSummaries(rows, notes, buildBlacklistStatuses(noShowKeys, entries), now);
+    const noShowKeys = rows
+        .filter((r) => r.noShow && !isAnonymised(r.customerEmail))
+        .map((r) => customerKey(r.customerEmail, r.customerPhone));
+    return buildCustomerSummaries(rows, notes, buildBlacklistStatuses(noShowKeys, entries), now, profiles);
 }
 
 export async function getCustomerHistory(key: string, now: SalonClock = salonNow()): Promise<CustomerHistory | null> {

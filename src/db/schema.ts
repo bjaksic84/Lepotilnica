@@ -138,6 +138,34 @@ export const customerBlacklist = sqliteTable(
 export type CustomerBlacklistEntry = typeof customerBlacklist.$inferSelect;
 
 /**
+ * What Karin herself has said about a customer's identity: a customer she
+ * added before they ever booked, or a name she corrected. Keyed like every
+ * other customer table, by the normalised e-mail + phone pair ("" when there
+ * is no phone).
+ *
+ * The name competes with the names typed on bookings on recency: whichever
+ * was entered last is what the Logs page shows, so her correction holds until
+ * the customer books again under another spelling.
+ */
+export const customerProfiles = sqliteTable(
+    "customer_profiles",
+    {
+        customerEmail: text("customer_email").notNull(),
+        customerPhone: text("customer_phone").notNull(),
+        name: text("name").notNull(),
+        createdAt: text("created_at")
+            .default(sql`CURRENT_TIMESTAMP`)
+            .notNull(),
+        updatedAt: text("updated_at")
+            .default(sql`CURRENT_TIMESTAMP`)
+            .notNull(),
+    },
+    (table) => [primaryKey({ columns: [table.customerEmail, table.customerPhone] })]
+);
+
+export type CustomerProfile = typeof customerProfiles.$inferSelect;
+
+/**
  * Failed admin login attempts, used to lock out brute force.
  *
  * This exists because the Cloudflare Rate Limiting binding does not actually

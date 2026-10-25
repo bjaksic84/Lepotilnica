@@ -30,11 +30,14 @@ const noShowsLabel = (n: number) => countLabel(n, ["neprihod", "neprihoda", "nep
 export default function AddBookingModal({
     initialDate,
     initialTime,
+    initialCustomer,
     onClose,
     onCreated,
 }: {
     initialDate?: string;
     initialTime?: string;
+    /** Pre-filled when booking from a customer's record in Logs. */
+    initialCustomer?: { name: string; email: string; phone: string };
     onClose: () => void;
     onCreated: () => void;
 }) {
@@ -44,9 +47,9 @@ export default function AddBookingModal({
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [pickerOpen, setPickerOpen] = useState(false);
 
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [phone, setPhone] = useState("");
+    const [name, setName] = useState(initialCustomer?.name ?? "");
+    const [email, setEmail] = useState(initialCustomer?.email ?? "");
+    const [phone, setPhone] = useState(initialCustomer?.phone ?? "");
     const [date, setDate] = useState(initialDate ?? todayStr());
     const [time, setTime] = useState(initialTime ?? "");
     const [notes, setNotes] = useState("");

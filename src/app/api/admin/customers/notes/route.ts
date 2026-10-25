@@ -39,6 +39,33 @@ export async function POST(request: Request) {
     }
 }
 
+// PATCH /api/admin/customers/notes — Edit an admin note's text
+export async function PATCH(request: Request) {
+    const unauth = await requireAdmin();
+    if (unauth) return unauth;
+
+    try {
+        const { id, note } = await request.json();
+        if (!Number.isInteger(id) || typeof note !== "string" || !note.trim()) {
+            return NextResponse.json({ error: "id and note are required" }, { status: 400 });
+        }
+
+        const updated = await db
+            .update(customerNotes)
+            .set({ note: note.trim() })
+            .where(eq(customerNotes.id, id))
+            .returning()
+            .get();
+        if (!updated) {
+            return NextResponse.json({ error: "Note not found" }, { status: 404 });
+        }
+        return NextResponse.json(updated);
+    } catch (error) {
+        console.error("Failed to edit note:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+}
+
 // DELETE /api/admin/customers/notes — Delete an admin note
 export async function DELETE(request: Request) {
     const unauth = await requireAdmin();

@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-export const bookingSchema = z.object({
+/**
+ * Name, e-mail and phone, as every form that records a customer takes them:
+ * online booking, manual booking, and adding or editing a customer in Logs.
+ * One definition, so a customer Karin saves can always book with the same
+ * details and vice versa.
+ */
+const customerFields = {
     customerName: z
         .string()
         .min(2, "Ime mora vsebovati vsaj 2 znaka")
@@ -15,6 +21,10 @@ export const bookingSchema = z.object({
         .min(8, "Telefonska številka mora imeti vsaj 8 znakov")
         .max(20, "Telefonska številka je predolga")
         .regex(/^\+?[\d\s\-()]{8,20}$/, "Vnesite veljavno telefonsko številko (npr. +386 40 123 456)"),
+};
+
+export const bookingSchema = z.object({
+    ...customerFields,
     serviceId: z.coerce.number().int().positive("Izberite storitev"),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Neveljaven format datuma"),
     time: z.string().regex(/^\d{2}:\d{2}$/, "Neveljaven format časa"),
@@ -33,20 +43,7 @@ export const blockedTimeSchema = z.object({
 export type BlockedTimeFormData = z.infer<typeof blockedTimeSchema>;
 
 export const multiBookingSchema = z.object({
-    customerName: z
-        .string()
-        .min(2, "Ime mora vsebovati vsaj 2 znaka")
-        .max(100, "Ime je predolgo")
-        .regex(/^[a-zA-Z\u00C0-\u017E\s\-'.]+$/, "Ime sme vsebovati le črke, presledke in vezaje"),
-    customerEmail: z
-        .string()
-        .email("Vnesite veljaven e-poštni naslov")
-        .max(255, "E-poštni naslov je predolg"),
-    customerPhone: z
-        .string()
-        .min(8, "Telefonska številka mora imeti vsaj 8 znakov")
-        .max(20, "Telefonska številka je predolga")
-        .regex(/^\+?[\d\s\-()]{8,20}$/, "Vnesite veljavno telefonsko številko (npr. +386 40 123 456)"),
+    ...customerFields,
     serviceIds: z.array(z.coerce.number().int().positive("Neveljavna storitev")).min(1, "Izberite vsaj eno storitev"),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Neveljaven format datuma"),
     time: z.string().regex(/^\d{2}:\d{2}$/, "Neveljaven format časa"),
@@ -54,6 +51,19 @@ export const multiBookingSchema = z.object({
 });
 
 export type MultiBookingFormData = z.infer<typeof multiBookingSchema>;
+
+/** Adding a customer in Logs, before they have booked. */
+export const newCustomerSchema = z.object({
+    ...customerFields,
+    note: z.string().max(2000, "Opomba je predolga (največ 2000 znakov)").optional(),
+});
+
+/** Editing a customer in Logs; `merge` confirms joining another customer. */
+export const editCustomerSchema = z.object({
+    key: z.string().min(3),
+    ...customerFields,
+    merge: z.boolean().optional(),
+});
 
 /**
  * Website enquiry form (the "povpraševanje" box on the homepage).

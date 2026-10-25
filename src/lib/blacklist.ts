@@ -135,6 +135,15 @@ export async function blacklistCustomer(
 /** Lift a blacklist, manual or earned, forgiving every no-show so far. */
 export async function liftBlacklist(email: string, phone: string | null | undefined): Promise<BlacklistStatus> {
     const current = await getBlacklistStatus(email, phone);
-    await upsertEntry(email, phone, { blocked: false, reason: null, noShowsForgiven: current.noShows });
+    if (current.noShows === 0) {
+        // Nothing to forgive, so nothing worth keeping — in particular not the
+        // e-mail and phone of a deleted customer whose block is being lifted.
+        const pair = parseCustomerKey(customerKey(email, phone))!;
+        await db
+            .delete(customerBlacklist)
+            .where(and(eq(customerBlacklist.customerEmail, pair.email), eq(customerBlacklist.customerPhone, pair.phone)));
+    } else {
+        await upsertEntry(email, phone, { blocked: false, reason: null, noShowsForgiven: current.noShows });
+    }
     return getBlacklistStatus(email, phone);
 }
